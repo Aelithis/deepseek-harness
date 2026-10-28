@@ -1,3 +1,5 @@
+> DSH Private is the personal distribution maintained in this fork. It removes account login, telemetry and background updates, starts without preselected providers, and keeps configurable API-key models and search. See the [private distribution guide](docs/upgrade-guide/v0.2.1-rc.3/private-distribution/guide.md). The upstream project introduction follows.
+
 # DeepSeek Harness
 
 English | [中文](README.zh.md)

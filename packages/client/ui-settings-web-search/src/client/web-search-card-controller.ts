@@ -91,6 +91,8 @@ export interface WebSearchCardState extends SettingsFormShell {
   apiSwitchBlocked: boolean
   /** Staged switch position: true selects the Search and Fetch APIs. */
   useSearchApi: boolean
+  /** Whether a search provider is explicitly selected. */
+  searchEnabled: boolean
   /** Endpoint of the selected API. */
   baseURL: SettingsFieldState
   /** Maximum Messages server-tool uses. */
@@ -113,6 +115,8 @@ export interface WebSearchCardFace extends SettingsFormActions {
   }
   /** Stage the API switch: true selects the Search and Fetch APIs, false Messages search with local fetch. */
   setSearchApi: (enabled: boolean) => void
+  /** Add or remove the explicit search configuration. */
+  setSearchEnabled: (enabled: boolean) => void
 }
 
 /** Settings scopes for the namespaces the page edits. */
@@ -201,6 +205,7 @@ export class WebSearchCardController {
       apiSwitchAvailable: this.switchAvailable(),
       apiSwitchBlocked: shell.invalid || shell.failed,
       useSearchApi: searchApi,
+      searchEnabled: this.selection.field('searchProvider').text.length > 0,
       baseURL: (searchApi ? this.api : this.messages).field('baseURL'),
       maxUses: this.messages.field('maxUses'),
       count: this.api.field('count'),
@@ -276,6 +281,16 @@ export class WebSearchCardController {
       edit: (field, text) => { formOf(field).actions().edit(field, text) },
       resetField: (field) => { formOf(field).actions().resetField(field) },
       setSearchApi: (enabled) => { this.select(enabled) },
+      setSearchEnabled: (enabled) => {
+        if (enabled) this.select(this.searchApi())
+        else {
+          this.selection.actions().edit('searchProvider', '')
+          this.selection.actions().edit('fetchProvider', 'http')
+          for (const [form, fields] of [[this.messages, ['baseURL', 'maxUses']], [this.api, ['baseURL', 'count']]] as const) {
+            for (const field of fields) form.actions().edit(field, '')
+          }
+        }
+      },
       save: () => { void this.save() },
       discard: () => {
         for (const form of [this.selection, this.messages, this.api]) form.actions().discard()

@@ -28,7 +28,6 @@
   "license": "MIT",
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:~",
-    "@deepseek-ai/dsh-anonymous-user-id": "workspace:*",
     "@deepseek-ai/dsh-atomic-write": "workspace:*",
     "@deepseek-ai/dsh-attachment": "workspace:*",
     "@deepseek-ai/dsh-deepseek-llm-api-extensions": "workspace:*",
@@ -49,10 +48,8 @@
   },
   "devDependencies": {
     "@deepseek-ai/dsh-llm-deepseek-api-key": "workspace:*",
-    "@deepseek-ai/dsh-llm-deepseek-account": "workspace:*",
     "@deepseek-ai/cordis": "workspace:~",
     "@deepseek-ai/dsh-agent": "workspace:*",
-    "@deepseek-ai/dsh-anonymous-user-id": "workspace:*",
     "@deepseek-ai/dsh-atomic-write": "workspace:*",
     "@deepseek-ai/dsh-attachment": "workspace:*",
     "@deepseek-ai/dsh-attachment-local": "workspace:*",
@@ -62,9 +59,7 @@
     "@deepseek-ai/dsh-home-paths": "workspace:*",
     "@deepseek-ai/dsh-launch-environment": "workspace:*",
     "@deepseek-ai/dsh-llm": "workspace:*",
-    "@deepseek-ai/dsh-plugin-package-inventory-deepseek": "workspace:*",
     "@deepseek-ai/dsh-session": "workspace:*",
-    "@deepseek-ai/dsh-session-log-deepseek": "workspace:*",
     "@deepseek-ai/dsh-timeout": "workspace:*",
     "@deepseek-ai/dsh-http-proxy": "workspace:*",
     "@deepseek-ai/cordis-plugin-loader": "workspace:~",
@@ -75,7 +70,6 @@
     "@deepseek-ai/dsh-tools": "workspace:*",
     "@deepseek-ai/dsh-credentials-local": "workspace:*",
     "@deepseek-ai/dsh-settings": "workspace:*",
-    "@deepseek-ai/dsh-deepseek-account": "workspace:*",
     "@types/semver": "^7.8.0"
   },
   "peerDependenciesMeta": {

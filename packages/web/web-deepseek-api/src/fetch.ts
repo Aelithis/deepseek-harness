@@ -30,9 +30,9 @@ export class DeepSeekFetchApiProvider implements WebFetchProvider {
   /** @param resolveOptions - the options for the NEXT fetch, read once at each fetch's entry. */
   constructor(private readonly resolveOptions: () => DeepSeekFetchApiOptions) {}
 
-  available(): boolean {
+  async available(): Promise<boolean> {
     const options = this.resolveOptions()
-    return hasDeepSeekWebCredential(options) && URL.canParse(options.baseURL)
+    return await hasDeepSeekWebCredential(options) && URL.canParse(options.baseURL)
   }
 
   fetch(request: WebFetchRequest, signal?: AbortSignal): Promise<WebFetchResult> {

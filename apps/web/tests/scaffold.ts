@@ -290,6 +290,8 @@ export interface WebScaffold {
   persistenceRoot: string
   /** Isolated harness home the settings/credentials rows write ($DSH_HOME double). */
   harnessHome: string
+  /** Release a fully consumed replay adapter before activating another route. */
+  releaseReplay(): void
   /** Send a browser-equivalent Host request with this scaffold's authenticated cookie. */
   hostFetch(path: string, init?: RequestInit): Promise<Response>
   /** Await a settled turn end: in-process turn/end, then the agent's idle flip (which follows the persistence flush). */
@@ -953,6 +955,12 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
     ctx,
     workspaceCwd,
     persistenceRoot,
+    releaseReplay(): void {
+      if (replayHandle === undefined) throw new Error('No replay adapter is active')
+      replayHandle.assertConsumed()
+      replayHandle.dispose()
+      replayHandle = undefined
+    },
     hostFetch(path: string, init: RequestInit = {}): Promise<Response> {
       const headers = new Headers(init.headers)
       headers.set('cookie', cookieHeader)

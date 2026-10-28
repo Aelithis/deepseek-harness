@@ -7,6 +7,8 @@ kind: "package-reference"
 
 English | [中文](README.zh.md)
 
+With no saved provider/model, `configuredSelection()` returns `null`; `currentSelection()` reports `MODEL_NOT_CONFIGURED`. No provider is preselected.
+
 ## Summary
 
 Give newly created agents a shared default provider and model when their sessions do not specify one. Provider, model, and reasoning effort are live Config fields. Saved selections update the active profile patch and apply to subsequent reads; per-session selection remains owned by the entry point.
@@ -29,7 +31,7 @@ Mount this package wherever agents are created without an explicit model route. 
 
 ### Configure the default
 
-The composition requires a provider and model. Consumers read the live references even when no configuration editor is mounted.
+The composition may start without a provider or model. Consumers read configuredSelection() to display an empty state, and require currentSelection() only when a model is needed.
 
 ```yaml
 - name: '@deepseek-ai/dsh-agent-default-model'
@@ -40,8 +42,8 @@ The composition requires a provider and model. Consumers read the live reference
 
 | Field | Default | Meaning |
 |---|---|---|
-| `provider` | required | Registered provider route for fresh agents |
-| `model` | required | Provider-owned model id for fresh agents |
+| `provider` | unset | Registered provider route for fresh agents |
+| `model` | unset | Provider-owned model id for fresh agents |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-agent-default-model) lists every accepted field. `reasoningEffort` is optional; saving a selection without it removes that field from the profile’s complete config override.
 

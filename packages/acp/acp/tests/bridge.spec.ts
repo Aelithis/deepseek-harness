@@ -834,7 +834,7 @@ describe('automation-only ACP bridge', () => {
     expect(harness.ctx.agents.get(SessionId(sessionId))?.options).toEqual({})
   })
 
-  it('allows request listeners to supply a route when ACP has no initial selection', async () => {
+  it('rejects an unconfigured ACP model before admitting a prompt', async () => {
     harness = await makeBridgeHarness({
       config: { provider: undefined, model: undefined },
       script: [textResponse('listener-routed')],
@@ -851,8 +851,8 @@ describe('automation-only ACP bridge', () => {
     await expect(harness.client.prompt({
       sessionId: created.sessionId,
       prompt: [{ type: 'text', text: 'route me' }],
-    })).resolves.toEqual({ stopReason: 'end_turn' })
-    expect(harness.adapter.requests[0]).toMatchObject({ provider: 'mock', model: 'mock' })
+    })).rejects.toThrow('尚未配置模型')
+    expect(harness.adapter.requests).toHaveLength(0)
   })
 
   it('concatenates text blocks without exposing protocol framing to the model', async () => {

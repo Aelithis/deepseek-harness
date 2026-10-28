@@ -26,7 +26,7 @@ function quote(value: string): string { return `'${value.replaceAll("'", "'\\''"
  */
 export function prepareDevelopmentApp(options: DevelopmentAppOptions): string {
   const source = dirname(dirname(dirname(options.electron)))
-  const bundle = join(options.directory, 'Harness Dev.app')
+  const bundle = join(options.directory, 'DSH Private Dev.app')
   const executable = join(bundle, 'Contents', 'MacOS', 'HarnessDev')
   const stamp = join(bundle, 'Contents', 'Resources', 'dsh-development.json')
   const launcher = developmentLauncher(options, bundle)
@@ -36,11 +36,11 @@ export function prepareDevelopmentApp(options: DevelopmentAppOptions): string {
     execFileSync('/usr/bin/ditto', [source, bundle])
     const plist = join(bundle, 'Contents', 'Info.plist')
     const values = {
-      CFBundleIdentifier: `com.deepseek.harness.dev.${createHash('sha256').update(options.appRoot).digest('hex').slice(0, 12)}`,
-      CFBundleName: 'Harness Dev',
-      CFBundleDisplayName: 'Harness Dev',
+      CFBundleIdentifier: `org.aelith.dsh-private.dev.${createHash('sha256').update(options.appRoot).digest('hex').slice(0, 12)}`,
+      CFBundleName: 'DSH Private Dev',
+      CFBundleDisplayName: 'DSH Private Dev',
       CFBundleExecutable: 'HarnessDev',
-      CFBundleURLTypes: [{ CFBundleURLName: 'DeepSeek Harness', CFBundleURLSchemes: ['dsh'], CFBundleTypeRole: 'Viewer' }],
+      CFBundleURLTypes: [{ CFBundleURLName: 'DSH Private', CFBundleURLSchemes: ['dsh-private'], CFBundleTypeRole: 'Viewer' }],
     }
     for (const [key, value] of Object.entries(values)) {
       execFileSync('/usr/bin/plutil', ['-replace', key, '-json', JSON.stringify(value), plist])

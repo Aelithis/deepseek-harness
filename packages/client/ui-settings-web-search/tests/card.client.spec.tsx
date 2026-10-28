@@ -26,14 +26,14 @@ const endpoints = {
 }
 
 function cardActions() {
-  return { edit: vi.fn(), resetField: vi.fn(), setSearchApi: vi.fn(), save: vi.fn(), discard: vi.fn() }
+  return { edit: vi.fn(), resetField: vi.fn(), setSearchApi: vi.fn(), setSearchEnabled: vi.fn(), save: vi.fn(), discard: vi.fn() }
 }
 
 describe('WebSearchCard', () => {
   function renderWebSearch(state: Partial<WebSearchCardState> = {}) {
     const store = createSnapshotStore<WebSearchCardState>({
       ...settled,
-      apiSwitchAvailable: true,
+      searchEnabled: true, apiSwitchAvailable: true,
       apiSwitchBlocked: state.invalid === true || state.failed === true,
       baseURL: state.useSearchApi === true ? endpoints.api : endpoints.messages, useSearchApi: false, maxUses: field('5'),
       count: field('10'),
@@ -50,7 +50,7 @@ describe('WebSearchCard', () => {
 
   it('renders its one-liner alone in the summary view', () => {
     const store = createSnapshotStore<WebSearchCardState>({
-      ...settled, baseURL: endpoints.messages, apiSwitchAvailable: true, apiSwitchBlocked: false, useSearchApi: false,
+      ...settled, baseURL: endpoints.messages, searchEnabled: true, apiSwitchAvailable: true, apiSwitchBlocked: false, useSearchApi: false,
       maxUses: field('5'), count: field('10'), apiKey: field(''), apiKeyConfigured: false, apiKeyWritable: true,
     })
     const props = { ...cardActions(), view: 'summary', t, useWebSearchCard: bindSnapshotSelector(store) } as WebSearchCardProps
@@ -140,7 +140,7 @@ describe('WebSearchCard', () => {
     expect(guide.getAttribute('target')).toBe('_blank')
     expect(guide.getAttribute('rel')).toBe('noopener noreferrer')
     expect(guide.parentElement?.textContent).toBe(`${en.useSearchApiHint}${en.searchGuide}`)
-    expect(`${zh.useSearchApiHint}${zh.searchGuide}`).toBe('默认关闭，搜索通过 DeepSeek Messages 完成。新版 Web 搜索 API 功能与计费详见网页搜索与抓取指南')
+    expect(`${zh.useSearchApiHint}${zh.searchGuide}`).toBe('选择搜索接口。功能与计费详见网页搜索与抓取指南')
     expect(zh.searchGuideUrl).toBe('https://api-docs.deepseek.com/zh-cn/guides/search')
   })
 
@@ -180,4 +180,17 @@ describe('WebSearchCard', () => {
     expect(actions.resetField.mock.calls).toEqual([['count']])
     expect(actions.setSearchApi).toHaveBeenCalledWith(false)
   })
+})
+
+it('offers search setup without exposing a default configuration', () => {
+  const store = createSnapshotStore<WebSearchCardState>({
+    ...settled, searchEnabled: false, apiSwitchAvailable: true, apiSwitchBlocked: false,
+    useSearchApi: false, baseURL: field(''), maxUses: field('5'), count: field('10'),
+    apiKey: field(''), apiKeyConfigured: false, apiKeyWritable: true,
+  })
+  const actions = cardActions()
+  render(<WebSearchCard {...{ ...actions, view: 'page', t, useWebSearchCard: bindSnapshotSelector(store) } as WebSearchCardProps} />)
+  expect(screen.queryByLabelText(en.apiKey)).toBeNull()
+  fireEvent.click(screen.getByRole('switch', { name: en.searchEnabled }))
+  expect(actions.setSearchEnabled).toHaveBeenCalledWith(true)
 })

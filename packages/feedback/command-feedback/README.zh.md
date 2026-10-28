@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-command-feedback` 让用户告诉 harness 他们对会话的看法。输入 `/feedback` 加一条评价，评价即被记录，并以会话 id 与匿名用户 id 确认；Web 反馈弹窗通过 `sessionFeedback` Host Remote 记录分类与可选描述。记录是即时的，绝不会启动模型工作：模型既看不到这条评价，也不会被打断。本包同时拥有所有反馈界面共用的固定分类表。它随标准 `dsh` 基础组合交付，无需任何配置；无头模式、ACP（Agent Client Protocol）与 JSON-RPC 入口不提供斜杠命令。
+`dsh-command-feedback` 让用户告诉 harness 他们对会话的看法。输入 `/feedback` 加一条评价，评价即被记录，并以本地会话 id 确认；Web 反馈弹窗通过 `sessionFeedback` Host Remote 记录分类与可选描述。记录是即时的，绝不会启动模型工作：模型既看不到这条评价，也不会被打断。本包同时拥有所有反馈界面共用的固定分类表。它随标准 `dsh` 基础组合交付，无需任何配置；无头模式、ACP（Agent Client Protocol）与 JSON-RPC 入口不提供斜杠命令。
 
 ## 目录
 
@@ -29,11 +29,11 @@ kind: "package-reference"
 
 ### `/feedback` 命令
 
-输入 `/feedback` 加你的评价并发送。成功时会以接收会话 id 与匿名用户 id 确认：
+输入 `/feedback` 加你的评价并发送。成功时会以接收会话 id 确认：
 
 | 输入 | 结果 |
 |---|---|
-| `/feedback the diff view is unreadable` | 记录评价并以两行确认：`Feedback recorded for session {sessionId}` 和 `Anonymous user: {userId}.` |
+| `/feedback the diff view is unreadable` | 记录评价并以 `Feedback recorded for session {sessionId}` 确认 |
 | `/feedback` | 用法错误：`Feedback text is required. Usage: /feedback <text>`。仅含空白的输入视为空输入。 |
 
 前后空白会被去除，但除此之外，评价会按输入原样保留：不进行截断、大小写折叠或命令解析——`/feedback /plan felt slow` 记录的就是这段字面文本。每次执行命令都会记录自己的条目；不会发生合并或替换。
@@ -84,7 +84,7 @@ Web 客户端随附该命令。无头模式、ACP 自动化和 JSON-RPC 不提�
 
 ### 评价如何被记录
 
-生产方去除文本空白，把空白文本记为缺省，并向会话日志写入一个事件，即使条目既无文本也无分类；`/feedback` 处理器自行拒绝空输入，其余部分是该生产方的薄包装层；`sessionFeedback.record` Remote 则按 id 找到 live Session 后同样调用它，没有 live 持有者时回答 `session-not-found`。两条路径都不启动模型工作。写入是即时但未 flush 的：确认文本表示条目已到达日志，而不是已落盘。某个 harness home 首次接受的命令评价还会创建确认文本所报告的匿名用户 id。精确的生产方约定见 [`src/index.ts`](src/index.ts)；事件载荷、分类表与 Remote 词汇见 [`src/types.ts`](src/types.ts)。
+生产方去除文本空白，把空白文本记为缺省，并向会话日志写入一个事件，即使条目既无文本也无分类；`/feedback` 处理器自行拒绝空输入，其余部分是该生产方的薄包装层；`sessionFeedback.record` Remote 则按 id 找到 live Session 后同样调用它，没有 live 持有者时回答 `session-not-found`。两条路径都不启动模型工作。写入是即时但未 flush 的：确认文本表示条目已到达日志，而不是已落盘。精确的生产方约定见 [`src/index.ts`](src/index.ts)；事件载荷、分类表与 Remote 词汇见 [`src/types.ts`](src/types.ts)。
 
 ### 源码索引
 
@@ -104,7 +104,6 @@ Web 客户端随附该命令。无头模式、ACP 自动化和 JSON-RPC 不提�
 
 - [dsh-commands](../../interaction/commands/README.zh.md)——发现全局命令并定义 `recordInput` 语义的注册表。
 - [会话持久化子系统](../../../docs/subsystems/persistence.zh.md)——追加事件如何持久化、flush 屏障的含义。
-- [匿名用户身份](../../identity/anonymous-user-id/README.zh.md)——确认文本报告的 id。
 - [ui-message-feedback](../../client/ui-message-feedback/README.zh.md)——通过 `sessionFeedback` Remote 记录的 Web 反馈弹窗。
 - [反馈包索引](../README.zh.md)——展示仅写入日志的采集与逐消息反馈在包中的并列位置。
 

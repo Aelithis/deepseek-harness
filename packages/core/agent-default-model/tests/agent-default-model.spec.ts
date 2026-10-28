@@ -67,3 +67,11 @@ it('serializes overlapping saves and continues after a rejected write', async ()
   expect(calls).toEqual(['rejected', 'saved'])
   expect(ctx.agentDefaultModel.currentSelection()).toEqual({ provider: 'test', model: 'final' })
 })
+
+it('starts without a provider and reports that a model must be selected', async () => {
+  const ctx = new Context()
+  onTestFinished(() => ctx.fiber.dispose())
+  await ctx.plugin(DefaultModel, {})
+  expect(ctx.agentDefaultModel.configuredSelection()).toBeNull()
+  expect(() => ctx.agentDefaultModel.currentSelection()).toThrow('尚未选择模型')
+})

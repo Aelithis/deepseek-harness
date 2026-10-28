@@ -25,6 +25,12 @@ interface UserMessage extends MessageBase {
  * compact raw streams so persistence stores one durable settlement per attempt.
  */
 interface SessionEventMap {
+  /** Legacy delivery receipt retained only for reading existing local Session logs. */
+  'session-log-deepseek/delivery-accepted': {
+    sessionId: SessionId
+    sessionFormatVersion?: number
+    throughSeq: SessionSeq
+  }
   /**
    * Opens turn `turn` before the loop claims queued input or runs pre-step.
    * Rejection, empty input, cancellation, or failure may close it with no

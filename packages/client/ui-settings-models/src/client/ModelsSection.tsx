@@ -1,7 +1,7 @@
 /**
  * Models settings section: the provider rows joined from the configurable
  * directory, settings namespaces, and credential states, with one editor
- * card at a time. Rows retain the account-first order supplied by the store
+ * card at a time. Rows retain the directory order supplied by the store
  * and expose only confirmed API-key state through accessible
  * solid configured or missing dots. A whole-section provider without a
  * configured key renders as its open setup card instead of a row, but only in
@@ -153,7 +153,7 @@ function renderProviderEditor({ target, row, ...props }: ProviderEditorRenderPro
 export async function removeProviderProfile(
   operations: ModelsOperations,
   controller: ModelsSettingsStore,
-  target: { settingsNs: string; settingsPath: readonly string[]; credentialRef?: string },
+  target: { provider?: string; settingsNs: string; settingsPath: readonly string[]; credentialRef?: string },
 ): Promise<string | undefined> {
   if (target.credentialRef !== undefined) {
     const credential = await operations.removeCredential(target.credentialRef)
@@ -161,10 +161,26 @@ export async function removeProviderProfile(
   }
   const written = await operations.writeSettings(
     target.settingsNs,
-    [{ op: 'unset', path: [...target.settingsPath] }],
+    target.settingsNs === 'llm-deepseek' && target.settingsPath.length === 0
+      ? [{ op: 'set', path: [], value: { enabled: false } }]
+      : [{ op: 'unset', path: [...target.settingsPath] }],
     undefined,
   )
   if (written.kind !== 'written') return written.message
+  const defaults = controller.store.getSnapshot().namespaces.get('agent-default-model')
+  if (target.provider !== undefined && defaults !== undefined
+    && typeof defaults.value === 'object' && defaults.value !== null
+    && Reflect.get(defaults.value, 'provider') === target.provider) {
+    const cleared = await operations.writeSettings('agent-default-model', [
+      { op: 'unset', path: ['provider'] },
+      { op: 'unset', path: ['model'] },
+      { op: 'unset', path: ['reasoningEffort'] },
+    ], defaults.revision)
+    if (cleared.kind !== 'written') {
+      await controller.load()
+      return cleared.message
+    }
+  }
   await controller.load()
   return undefined
 }
@@ -179,7 +195,7 @@ export async function removeProviderProfile(
  * @returns whether to render the setup card.
  */
 export function needsSetup(row: ProviderRow, anyUsable: boolean): boolean {
-  if (anyUsable || row.entry.provider === 'deepseek-account') return false
+  if (anyUsable) return false
   if (row.entry.settingsPath.length > 0) return false
   return row.credential?.configured !== true
 }
@@ -247,8 +263,7 @@ export function ModelsSection(props: ModelsSectionProps): ReactNode {
 function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderSlot: ModelsRenderSlot }): ReactNode {
   const { controller, operations, schema, t } = injected
   const snapshot = injected.useSnapshot(value => value)
-  const state = { ...snapshot, rows: snapshot.rows.map(row => row.entry.provider === 'deepseek-account'
-    ? { ...row, entry: { ...row.entry, displayName: t('deepSeekAccount') } } : row) }
+  const state = snapshot
   /** A new or failed surface waits for a current snapshot; background refreshes preserve its drafts. */
   const [hasReadySnapshot, setHasReadySnapshot] = useState(state.status === 'ready')
   if (state.status === 'ready' && !hasReadySnapshot) setHasReadySnapshot(true)
@@ -471,15 +486,6 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
                   {row.entry.declared === true
                     ? <span className={styles['rowTag']}>{t('customTag')}</span>
                     : null}
-                  {/* The store keeps the account row only while the account lists models. */}
-                  {row.entry.provider === 'deepseek-account'
-                    ? (
-                      <span className={styles['accountStatus']}>
-                        <span className={`${styles['credentialDot']} ${styles['credentialDotConfigured']}`} aria-hidden="true" />
-                        {t('accountSignedIn')}
-                      </span>
-                    )
-                    : null}
                   {credentialConfigured
                     ? (
                       <span
@@ -501,28 +507,23 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
                       : null}
                 </span>
                 <span className={styles['rowActions']}>
-                  {/* The account catalog comes from the account listing; its model overrides live in cordis.patch.yml. */}
-                  {row.entry.provider === 'deepseek-account'
-                    ? null
-                    : (
-                      <button
-                        type="button"
-                        className={styles['secondaryButton']}
-                        aria-label={providerCopy(t('editProvider'), target)}
-                        disabled={!open && state.status !== 'ready'}
-                        onClick={() => {
-                          if (!open && controller.store.getSnapshot().status !== 'ready') return
-                          setSavedTarget(undefined)
-                          // One card at a time: the add card closes with whatever
-                          // it held, since closing either card would otherwise
-                          // discard the other's draft.
-                          setAddOpen(false)
-                          setEditing(open ? undefined : target)
-                        }}
-                      >
-                        {t('edit')}
-                      </button>
-                    )}
+                  <button
+                    type="button"
+                    className={styles['secondaryButton']}
+                    aria-label={providerCopy(t('editProvider'), target)}
+                    disabled={!open && state.status !== 'ready'}
+                    onClick={() => {
+                      if (!open && controller.store.getSnapshot().status !== 'ready') return
+                      setSavedTarget(undefined)
+                      // One card at a time: the add card closes with whatever
+                      // it held, since closing either card would otherwise
+                      // discard the other's draft.
+                      setAddOpen(false)
+                      setEditing(open ? undefined : target)
+                    }}
+                  >
+                    {t('edit')}
+                  </button>
                   {row.removable
                     ? (
                       <button

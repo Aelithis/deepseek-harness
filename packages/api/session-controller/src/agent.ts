@@ -301,7 +301,11 @@ export class ApiSessionAgentController {
       get current(): AgentModelSelection {
         if (picked !== undefined) return picked
         const loggedHeader = agent.session.requestHeader()
-        if (loggedHeader === undefined) return defaultModel.currentSelection()
+        if (loggedHeader === undefined) {
+          const configured = defaultModel.configuredSelection()
+          if (configured === null) throw new RemoteError('session/model-not-selected', '请先选择模型再发送消息。', {})
+          return configured
+        }
         const logged = loggedHeader.config
         return {
           provider: logged.provider,
@@ -578,8 +582,7 @@ export class ApiSessionAgentController {
   }
 
   private agentOptions(): AgentOptions {
-    const { provider, model } = this.ctx.agentDefaultModel.currentSelection()
-    return { provider, model }
+    return this.ctx.agentDefaultModel.configuredSelection() ?? {}
   }
 
   private installSelection(agent: Agent): void {

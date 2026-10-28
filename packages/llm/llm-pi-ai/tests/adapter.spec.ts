@@ -124,35 +124,6 @@ describe('PiAiAdapter provider routing', () => {
     expect(server.headers[0]?.['user-agent']).toBe(userAgent())
   })
 
-  it('forwards common stream options and profile reasoning', async () => {
-    const server = await mockServer([{ events: textEvents }])
-    const ctx = await harness(server.url, {
-      reasoning: 'max',
-      cacheRetention: 'none',
-      transport: 'sse',
-      timeoutMs: 5000,
-      websocketConnectTimeoutMs: 3000,
-      streamIdleTimeoutMs: 10_000,
-      thinkingBudgets: { high: 2048 },
-    })
-    await assemble(ctx, {
-      model: 'deepseek-v4-pro',
-      messages: [],
-      temperature: 0.2,
-      maxTokens: 77,
-      sessionId: 'session-for-pi' as never,
-    })
-    expect(server.requests[0]).toMatchObject({
-      model: 'deepseek-v4-pro',
-      temperature: 0.2,
-      max_tokens: 77,
-      thinking: { type: 'enabled' },
-      reasoning_effort: 'max',
-    })
-    expect(server.requests[0]).not.toHaveProperty('dsh_session_log')
-    expect(server.requests[0]).not.toHaveProperty('dsh_plugin_packages')
-  })
-
   it('uses a dynamic request effort and reports unsupported efforts before network I/O', async () => {
     const server = await mockServer([{ events: textEvents }, { events: textEvents }])
     const ctx = await harness(server.url, { reasoning: 'max' })

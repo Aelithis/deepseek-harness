@@ -19,7 +19,7 @@ import type {
  */
 export async function buildModelCatalog(
   ctx: Context,
-  defaultSelection: ModelSelection = ctx.agentDefaultModel.currentSelection(),
+  defaultSelection: ModelSelection | null = ctx.agentDefaultModel.configuredSelection(),
 ): Promise<ModelCatalog> {
   const providers = ctx.llm.listProviders()
   const catalog = await Promise.all(providers.map(async (provider) => {
@@ -64,7 +64,7 @@ export async function buildModelCatalog(
   const groups = catalog.flatMap(item => item.kind === 'group' ? [item.group] : [])
     .filter(group => group.models.length > 0)
   return {
-    default: { ...defaultSelection },
+    default: defaultSelection === null ? null : { ...defaultSelection },
     routableProviders: groups.map(group => group.id),
     groups,
     failures: catalog.flatMap(item => item.kind === 'failure' ? [item.failure] : []),
@@ -102,7 +102,6 @@ export async function hasProviderApiKey(ctx: Context): Promise<boolean> {
   }
   const namespaces = settings.describe({ redactSecrets: true })
   for (const provider of ctx.llm.listConfigurableProviders()) {
-    if (provider.provider === 'deepseek-account') continue
     let profile = namespaces.find(namespace => namespace.ns === provider.settingsNs)?.value
     for (const key of provider.settingsPath) {
       profile = typeof profile === 'object' && profile !== null ? Reflect.get(profile, key) : undefined

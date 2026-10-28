@@ -157,9 +157,10 @@ Selection semantics (resolved at execution time, never order-dependent):
 - A configured id that is registered and `available()` → that provider.
 - A configured id not registered → `WEB_PROVIDER_CONFIGURED_MISSING`.
 - A configured id registered but unavailable → `WEB_PROVIDER_CONFIGURED_UNAVAILABLE`.
-- No id configured, exactly one registered usable provider → that provider.
-- No id configured, multiple usable providers → `WEB_PROVIDER_AMBIGUOUS`.
-- No id configured, no usable provider → `WEB_PROVIDER_UNAVAILABLE`.
+- No search id configured → `WEB_PROVIDER_UNAVAILABLE`.
+- No fetch id configured, exactly one registered usable provider → that provider.
+- No fetch id configured, multiple usable providers → `WEB_PROVIDER_AMBIGUOUS`.
+- No fetch id configured, no usable provider → `WEB_PROVIDER_UNAVAILABLE`.
 
 ```ts cordis-catalog
 /**

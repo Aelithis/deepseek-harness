@@ -46,8 +46,6 @@ import styles from './ModelsSection.module.css'
 /** Per-adapter-family curated field sets (unknown namespaces get the hint alone). */
 type EditorLayout = 'deepseek' | 'pi-ai' | 'unknown'
 
-
-
 /** Props of {@link ProviderEditor}. */
 export interface ProviderEditorProps {
   /** Provider route id. */
@@ -269,10 +267,13 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
     const ns = namespace.ns
     // A pi-ai profile names the conventional reference only when this page is
     // about to store a key. Otherwise the provider keeps its native auth path.
-    const next = layout === 'pi-ai' && stringAt(draft, 'apiKeyEnv') === undefined
+    const edited = layout === 'pi-ai' && stringAt(draft, 'apiKeyEnv') === undefined
       && stringAt(fallback, 'apiKeyEnv') === undefined && keyValue.length > 0
       ? schema.setPath(draft, ['apiKeyEnv'], keyRef)
       : draft
+    const next = props.provider === 'deepseek-official'
+      ? schema.setPath(edited, ['enabled'], true)
+      : edited
     if (props.credentialOnly !== true) {
       // The same checker gates the submit button, so a card cannot reach this
       // with a bad row; it stays because the schema check below would refuse

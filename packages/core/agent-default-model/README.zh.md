@@ -7,6 +7,8 @@ kind: "package-reference"
 
 [English](README.md) | 中文
 
+未保存供应商和模型时，`configuredSelection()` 返回 `null`，`currentSelection()` 报告 `MODEL_NOT_CONFIGURED`。应用不预选供应商。
+
 ## 概述
 
 为会话未指定模型的新 agent 提供共享默认 provider 和模型。Provider、模型和推理强度都是即时 Config 字段。保存的选择更新当前 profile patch，并用于后续读取；会话级选择仍由入口负责。
@@ -29,7 +31,7 @@ kind: "package-reference"
 
 ### 配置默认值
 
-组合要求提供 provider 和模型。即使没有挂载配置编辑器，消费者也可读取即时引用。
+组合允许在未配置供应商和模型时启动。消费者使用 configuredSelection() 显示空状态，仅在需要模型时调用 currentSelection()。
 
 ```yaml
 - name: '@deepseek-ai/dsh-agent-default-model'
@@ -40,8 +42,8 @@ kind: "package-reference"
 
 | 字段 | 默认值 | 含义 |
 |---|---|---|
-| `provider` | 必填 | 新 agent 使用的已注册提供方路由 |
-| `model` | 必填 | 新 agent 使用的、由提供方持有的模型 id |
+| `provider` | 未设置 | 新 agent 使用的已注册提供方路由 |
+| `model` | 未设置 | 新 agent 使用的、由提供方持有的模型 id |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-agent-default-model) 列出所有接受的字段。`reasoningEffort` 是可选的；保存不含此字段的选择，会从 profile 的完整配置覆盖中移除此字段。
 

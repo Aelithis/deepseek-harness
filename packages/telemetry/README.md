@@ -22,12 +22,10 @@ This group provides reporting infrastructure shared by product analytics and fee
 
 | Package | Role |
 |---|---|
-| [`otel`](otel/README.md) | Cordis service creating independent ordinary-event and byte-bounded Session-log channels |
 
 <a id="related-documentation"></a>
 ## Related documentation
 
-- [OTel subsystem](../../docs/subsystems/otel.md) — shared service and consumer ownership.
 
 <a id="dev-note"></a>
 ## Dev Note

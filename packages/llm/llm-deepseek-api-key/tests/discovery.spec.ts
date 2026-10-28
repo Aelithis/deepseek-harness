@@ -9,7 +9,7 @@ it.each([undefined, ''])('hides models without an API key: %j', async (key) => {
   const ctx = new Context()
   try {
     await ctx.plugin(LlmRuntime)
-    await ctx.plugin(ApiKey, {})
+    await ctx.plugin(ApiKey, { enabled: true })
     expect(await ctx.llm.listModels('deepseek-official')).toEqual([])
   } finally {
     await ctx.fiber.dispose()
@@ -22,7 +22,7 @@ it('advertises configured models with an API key', async () => {
   const ctx = new Context()
   try {
     await ctx.plugin(LlmRuntime)
-    await ctx.plugin(ApiKey, { models: [{ id: 'configured-model' }] })
+    await ctx.plugin(ApiKey, { enabled: true, models: [{ id: 'configured-model' }] })
     expect(await ctx.llm.listModels('deepseek-official')).toEqual([
       expect.objectContaining({ provider: 'deepseek-official', id: 'configured-model' }),
     ])
@@ -37,10 +37,28 @@ it('reports malformed credentials during discovery', async () => {
   const ctx = new Context()
   try {
     await ctx.plugin(LlmRuntime)
-    await ctx.plugin(ApiKey, {})
+    await ctx.plugin(ApiKey, { enabled: true })
     await expect(ctx.llm.listModels('deepseek-official')).rejects.toMatchObject({ code: 'INVALID_CREDENTIAL' })
   } finally {
     await ctx.fiber.dispose()
     vi.unstubAllEnvs()
+  }
+})
+
+it('keeps the official provider dormant until added and permits removal and re-addition', async () => {
+  const { liveConfig } = await import('../../../settings/settings/tests/live-config.ts')
+  const ctx = new Context()
+  try {
+    await ctx.plugin(LlmRuntime)
+    const live = await liveConfig(ctx, ApiKey, {})
+    expect(ctx.llm.listProviders()).toEqual([])
+    await live.update({ enabled: true })
+    expect(ctx.llm.listProviders()).toContainEqual(expect.objectContaining({ id: 'deepseek-official' }))
+    await live.replace({ enabled: false })
+    expect(ctx.llm.listProviders()).toEqual([])
+    await live.update({ enabled: true })
+    expect(ctx.llm.listProviders()).toContainEqual(expect.objectContaining({ id: 'deepseek-official' }))
+  } finally {
+    await ctx.fiber.dispose()
   }
 })

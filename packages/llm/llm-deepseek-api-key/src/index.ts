@@ -112,7 +112,7 @@ export function apply(ctx: Context, config: Config): void {
       const view = await listings.view(connection.listing)
       return view.authenticated ? connectionOf(connection, view).offered.map(model => catalogModelInfo(provider, model)) : []
     },
-  })
+  }, () => config.enabled.get() ? [PROVIDER] : [])
   // Starting or stopping to follow the listing discards it, so restoring the built-in
   // catalog after a customization reloads the listing on the next access.
   let following = options().listing !== undefined

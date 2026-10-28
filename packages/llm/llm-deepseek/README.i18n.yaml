@@ -9,8 +9,8 @@
   en: e66a018af9e2de3c
   zh: d7188003d01964bb
 /deepseek-ai-dsh-llm-deepseek/summary:
-  en: a8871f9ce192ac6a
-  zh: 7d642e993f4ca71c
+  en: e7de143c82b17f1d
+  zh: ce7f165d98dce46b
 /deepseek-ai-dsh-llm-deepseek/table-of-contents:
   en: d152484eb41ac6b4
   zh: 09388d293f9be9cb
@@ -26,9 +26,9 @@
 /deepseek-ai-dsh-llm-deepseek/use-this-package/endpoint-and-wire-format:
   en: 522e74b770e9d4ca
   zh: a8b261b41677bfe7
-/deepseek-ai-dsh-llm-deepseek/use-this-package/account-credentials:
-  en: 3853ba1a1ffbb46c
-  zh: 97203e80ad933e59
+/deepseek-ai-dsh-llm-deepseek/use-this-package/api-key-credentials:
+  en: a75b527ecd136928
+  zh: b7c8209c202eec4d
 /deepseek-ai-dsh-llm-deepseek/use-this-package/streaming-with-thinking-and-images:
   en: 81bf213499f015ba
   zh: e9107ef322213e56
@@ -36,11 +36,11 @@
   en: 49290fc5647136b4
   zh: 96fa9ce0f9e83c13
 /deepseek-ai-dsh-llm-deepseek/use-this-package/provider-specific-request-fields:
-  en: f13f24b504dcfb50
-  zh: 69b0ed9e2adf3394
+  en: af49f8cd449c1b27
+  zh: 3c5027b936ac10f1
 /deepseek-ai-dsh-llm-deepseek/use-this-package/failures-and-recovery:
-  en: 40ab925291edc6ac
-  zh: 62c42ea3521920dc
+  en: 464b071dda076077
+  zh: 8a90a8fff2a4cddd
 /deepseek-ai-dsh-llm-deepseek/understand-the-implementation:
   en: 1598ac8a8bb9b6bf
   zh: fdd089c5ae7722cd
@@ -51,11 +51,11 @@
   en: 584698e2c7686997
   zh: 2aed9608d5317d7b
 /deepseek-ai-dsh-llm-deepseek/understand-the-implementation/wire-flow:
-  en: 9477d8af3d762450
-  zh: 52a2967518509f94
+  en: cabff5e17d4e7b4b
+  zh: bea0387159db0c77
 /deepseek-ai-dsh-llm-deepseek/further-exploration:
-  en: d3e6e29335c54987
-  zh: 3461235b93dfd697
+  en: 522d94c345cfa169
+  zh: 7934a7f939306b79
 /deepseek-ai-dsh-llm-deepseek/model-experience:
   en: 215e7ba838619b7b
   zh: a311da3843709f90

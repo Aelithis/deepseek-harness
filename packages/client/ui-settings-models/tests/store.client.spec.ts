@@ -4,7 +4,7 @@ import type { RpcResponse } from '@deepseek-ai/dsh-api-remotes/client'
 import { RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
 import { SettingsDescribeMirror } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-mirror.ts'
 import { settingsSchema } from './settings-schema.client.ts'
-import { deriveKeyRef, joinProviderDirectory, ModelsSettingsStore, providerUsable } from '../src/client/store.ts'
+import { deriveKeyRef, joinProviderDirectory, ModelsSettingsStore } from '../src/client/store.ts'
 
 it.each([
   ['anthropic', 'ANTHROPIC_API_KEY'],
@@ -37,13 +37,13 @@ it.each([false, true])('retains configuration diagnostics when the route is acti
   }])
 })
 
-it('places account and official before third-party providers', () => {
+it('preserves configurable provider order', () => {
   const providers = ['custom', 'deepseek-official', 'deepseek-account', 'openai']
   const directory = providers.map(provider => ({
     provider, displayName: provider, settingsNs: 'fixture', settingsPath: [],
   }))
   expect(joinProviderDirectory([], directory).map(row => row.provider))
-    .toEqual(['deepseek-account', 'deepseek-official', 'custom', 'openai'])
+    .toEqual(providers)
   expect(directory.map(row => row.provider)).toEqual(providers)
 })
 
@@ -77,7 +77,7 @@ const NAMESPACES = [
   {
     ns: 'llm-deepseek',
     schema: {},
-    value: { apiKeyEnv: 'DEEPSEEK_API_KEY', baseURL: 'https://base' },
+    value: { enabled: true, apiKeyEnv: 'DEEPSEEK_API_KEY', baseURL: 'https://base' },
     base: { baseURL: 'https://base' },
     autoGenerate: true, applies: 'live' as const,
     secrets: [],
@@ -190,7 +190,7 @@ describe('ModelsSettingsStore', () => {
     const byProvider = new Map(state.rows.map(row => [row.entry.provider, row]))
     expect(byProvider.get('deepseek-official')).toMatchObject({
       configured: true,
-      removable: false,
+      removable: true,
       apiKeyEnv: 'DEEPSEEK_API_KEY',
       credential: { configured: false, writable: true },
     })
@@ -536,38 +536,4 @@ describe('edge joins', () => {
     // The stale empty directory never overwrote the newer join.
     expect(store.store.getSnapshot().rows).toHaveLength(4)
   })
-})
-
-
-it.each([false, true])('uses account availability without asking for an API key: %s', async (accountAvailable) => {
-  const { ctx, mirror, seenRefs } = api({ accountAvailable, providers: async () => ok({ providers: [{
-    provider: 'deepseek-account', displayName: 'DeepSeek Account', settingsNs: 'llm-deepseek-account', settingsPath: [], active: true,
-  }] }) })
-  const store = new ModelsSettingsStore(ctx, settingsSchema, mirror)
-  await store.load()
-  const rows = store.store.getSnapshot().rows
-  expect(rows).toHaveLength(accountAvailable ? 1 : 0)
-  if (accountAvailable) {
-    expect(rows[0]).toMatchObject({ accountAvailable: true, apiKeyEnv: undefined, credential: undefined })
-    expect(providerUsable(rows[0]!)).toBe(true)
-  }
-  expect(store.store.getSnapshot().namespaces.get('llm-deepseek-account')?.ns).toBe('llm-deepseek-account')
-  expect(seenRefs).toEqual([])
-})
-
-it('removes the account row after sign-out and restores it after sign-in', async () => {
-  const overrides = { accountAvailable: true, providers: async () => ok({ providers: [{
-    provider: 'deepseek-account', displayName: 'DeepSeek Account', settingsNs: 'llm-deepseek-account', settingsPath: [], active: true,
-  }, ...DIRECTORY] }) }
-  const { ctx, mirror } = api(overrides)
-  const store = new ModelsSettingsStore(ctx, settingsSchema, mirror)
-  await store.load()
-  expect(store.store.getSnapshot().rows[0]?.entry.provider).toBe('deepseek-account')
-  overrides.accountAvailable = false
-  await store.load()
-  expect(store.store.getSnapshot().rows.map(row => row.entry.provider)).not.toContain('deepseek-account')
-  expect(store.store.getSnapshot().rows).toHaveLength(DIRECTORY.length)
-  overrides.accountAvailable = true
-  await store.load()
-  expect(store.store.getSnapshot().rows[0]?.entry.provider).toBe('deepseek-account')
 })

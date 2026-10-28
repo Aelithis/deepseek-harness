@@ -33,58 +33,67 @@ export function WebSearchCard(props: WebSearchCardProps) {
   const limitField = searchApi ? 'count' : 'maxUses'
   return (
     <SettingsForm labels={formLabels(t)} state={state} onSave={props.save} onDiscard={props.discard}>
-      {state.apiSwitchAvailable && (
-        <div className={styles.feature}>
-          <label className={styles.toggleRow}>
-            <span>{t('useSearchApi')}</span>
-            <Switch checked={searchApi} label={t('useSearchApi')} disabled={disabled || state.apiSwitchBlocked}
-              onChange={(checked) => { props.setSearchApi(checked) }} />
-          </label>
-          <p className={styles.hint}>
-            {t('useSearchApiHint')}
-            <a className={styles.link} href={t('searchGuideUrl')} target="_blank" rel="noopener noreferrer">{t('searchGuide')}</a>
-          </p>
-        </div>
-      )}
-      <SettingsSecretField
-        id="plugin-config-web-search-key"
-        label={t('apiKey')}
-        hint={t('apiKeyHint')}
-        // The credentials domain accepts a key even when the settings document
-        // itself is read-only; they are separate stores with separate refusals.
-        // Its own writability is what disables this control — a key sourced
-        // from the process environment cannot be written from here.
-        disabled={!state.apiKeyWritable}
-        text={state.apiKey.text}
-        configured={state.apiKeyConfigured}
-        stateLabel={state.apiKeyConfigured ? t('apiKeySet') : t('apiKeyUnset')}
-        onEdit={(text) => { props.edit('apiKey', text) }}
-      />
-      <SettingsValueField
-        id="plugin-config-web-search-endpoint"
-        label={t(searchApi ? 'searchApiBaseUrl' : 'baseUrl')}
-        hint={t(searchApi ? 'searchApiBaseUrlHint' : 'baseUrlHint')}
-        overriddenLabel={t('overridden')}
-        resetLabel={t('reset')}
-        invalidLabel={t('invalidNumber')}
-        disabled={disabled}
-        {...state.baseURL}
-        onEdit={(text) => { props.edit('baseURL', text) }}
-        onReset={() => { props.resetField('baseURL') }}
-      />
-      <SettingsValueField
-        id={searchApi ? 'plugin-config-web-search-count' : 'plugin-config-web-search-max-uses'}
-        label={t(limitField)}
-        hint={t(searchApi ? 'countHint' : 'maxUsesHint')}
-        overriddenLabel={t('overridden')}
-        resetLabel={t('reset')}
-        invalidLabel={t(searchApi ? 'invalidCount' : 'invalidNumber')}
-        numeric
-        disabled={disabled}
-        {...state[limitField]}
-        onEdit={(text) => { props.edit(limitField, text) }}
-        onReset={() => { props.resetField(limitField) }}
-      />
+      <div className={styles.feature}>
+        <label className={styles.toggleRow}>
+          <span>{t('searchEnabled')}</span>
+          <Switch checked={state.searchEnabled} label={t('searchEnabled')} disabled={disabled}
+            onChange={(checked) => { props.setSearchEnabled(checked) }} />
+        </label>
+      </div>
+      {state.searchEnabled && <>
+        {state.apiSwitchAvailable && (
+          <div className={styles.feature}>
+            <label className={styles.toggleRow}>
+              <span>{t('useSearchApi')}</span>
+              <Switch checked={searchApi} label={t('useSearchApi')} disabled={disabled || state.apiSwitchBlocked}
+                onChange={(checked) => { props.setSearchApi(checked) }} />
+            </label>
+            <p className={styles.hint}>
+              {t('useSearchApiHint')}
+              <a className={styles.link} href={t('searchGuideUrl')} target="_blank" rel="noopener noreferrer">{t('searchGuide')}</a>
+            </p>
+          </div>
+        )}
+        <SettingsSecretField
+          id="plugin-config-web-search-key"
+          label={t('apiKey')}
+          hint={t('apiKeyHint')}
+          // The credentials domain accepts a key even when the settings document
+          // itself is read-only; they are separate stores with separate refusals.
+          // Its own writability is what disables this control — a key sourced
+          // from the process environment cannot be written from here.
+          disabled={!state.apiKeyWritable}
+          text={state.apiKey.text}
+          configured={state.apiKeyConfigured}
+          stateLabel={state.apiKeyConfigured ? t('apiKeySet') : t('apiKeyUnset')}
+          onEdit={(text) => { props.edit('apiKey', text) }}
+        />
+        <SettingsValueField
+          id="plugin-config-web-search-endpoint"
+          label={t(searchApi ? 'searchApiBaseUrl' : 'baseUrl')}
+          hint={t(searchApi ? 'searchApiBaseUrlHint' : 'baseUrlHint')}
+          overriddenLabel={t('overridden')}
+          resetLabel={t('reset')}
+          invalidLabel={t('invalidNumber')}
+          disabled={disabled}
+          {...state.baseURL}
+          onEdit={(text) => { props.edit('baseURL', text) }}
+          onReset={() => { props.resetField('baseURL') }}
+        />
+        <SettingsValueField
+          id={searchApi ? 'plugin-config-web-search-count' : 'plugin-config-web-search-max-uses'}
+          label={t(limitField)}
+          hint={t(searchApi ? 'countHint' : 'maxUsesHint')}
+          overriddenLabel={t('overridden')}
+          resetLabel={t('reset')}
+          invalidLabel={t(searchApi ? 'invalidCount' : 'invalidNumber')}
+          numeric
+          disabled={disabled}
+          {...state[limitField]}
+          onEdit={(text) => { props.edit(limitField, text) }}
+          onReset={() => { props.resetField(limitField) }}
+        />
+      </>}
     </SettingsForm>
   )
 }

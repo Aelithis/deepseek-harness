@@ -7,6 +7,8 @@ kind: "package-reference"
 
 English | [中文](README.zh.md)
 
+The provider starts dormant (`enabled: false`). Adding it in Models enables its route; deleting it removes its user configuration and disables the route. It can be added again.
+
 ## Summary
 
 Register authentication, model discovery, and the official model listing for `deepseek-official`. This plugin shares the [Messages transport](../llm-deepseek/README.md) and owns credential resolution, catalog availability, and model admission.
@@ -41,7 +43,7 @@ The endpoint and credential reference come from one configuration resolution. In
 
 The first access waits for the listing up to `modelsTimeoutMs`. Later accesses use the loaded listing and refresh it in the background once it is older than `modelsMaxAgeMs`; an idle route sends no requests. A failed or empty listing keeps the previous one; before any listing loads, the route serves the built-in catalog of the current version (`deepseek-flash` and `deepseek-v4-pro`). A listing HTTP 401 fails only that load. Each loaded listing, the first failure of a failing streak with the catalog it falls back to, and each listing entry hidden because its declarations are unreadable or unusable are written to stderr with the `[llm-deepseek-api-key]` tag; stdout remains available for protocol messages, and secrets are never logged.
 
-Listed models are offered, merged with this build's entries, and refused before network I/O with `CLIENT_UPGRADE_REQUIRED` or `MODEL_UNSUPPORTED` by the [account route's rules](../llm-deepseek-account/README.md#use-this-package); model ids the listing does not name pass through unchanged.
+Listed models are offered, merged with this build's entries, and refused before network I/O with `CLIENT_UPGRADE_REQUIRED` or `MODEL_UNSUPPORTED`; model ids the listing does not name pass through unchanged.
 
 A `models` list that differs from the built-in catalog replaces the catalog and stops listing requests; the Models page stores an edited catalog there. Removing that list, as **Restore defaults** on the Models page does, returns the route to the listing, and the next access loads the listing again even when the cached one is still fresh. A list identical to the built-in catalog counts as uncustomized.
 

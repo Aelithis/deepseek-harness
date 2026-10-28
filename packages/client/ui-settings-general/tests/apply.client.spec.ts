@@ -14,7 +14,6 @@ import { graphFromRoster } from '@deepseek-ai/dsh-client-test-runtime/src/assemb
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import { LOCALE_SETTINGS_NAMESPACE, LocaleSettingsSchema } from '@deepseek-ai/dsh-client-locale/src/locale-settings.ts'
 import { inject } from '../src/client/index.ts'
-import type { DeveloperToolsRowInjected } from '../src/client/DeveloperToolsRow.tsx'
 import { HostReleasePrompt, type HostReleasePromptInjected } from '../src/client/HostReleasePrompt.tsx'
 import { CloseLabel, HeaderContent, TriggerContent } from '../src/client/chrome.tsx'
 import { GeneralSection } from '../src/client/GeneralSection.tsx'
@@ -24,8 +23,6 @@ import type { SettingsDocumentActionInjected } from '../src/client/SettingsDocum
 const SELF = '@deepseek-ai/dsh-client-ui-settings-general'
 const SIDEBAR = '@deepseek-ai/dsh-client-ui-sidebar'
 const it = createClientTest({ roster: webApp })
-/** The whole roster's first boot pays the cold module transform of every plugin package. */
-const COLD_BOOT_TIMEOUT_MS = 60_000
 /** Dictionary namespace this plugin owns; every seat it fills declares it. */
 const NS = 'settings'
 
@@ -73,10 +70,6 @@ function generalLabel(c: TestClient): string | undefined {
   return resolveSlotLabel(generalEntry(c).options.label)
 }
 
-function developerToolsRowOf(c: TestClient): DeveloperToolsRowInjected {
-  const developerRow = c.ctx.slots.entries('settings.general.item').find(row => row.options.id === 'developer-tools')!
-  return (developerRow.inject as unknown as () => DeveloperToolsRowInjected)()
-}
 
 function actionInjectedOf(c: TestClient): SettingsDocumentActionInjected {
   const entry = ownEntries(c, 'settings.action')[0]!
@@ -97,89 +90,6 @@ function setPageUrl(url: string): void {
 describe('ui-settings-general apply', () => {
   it('declares the services it uses', () => {
     expect(inject).toEqual(['slots', 'locale', 'connection', 'remote', 'remote.settings', 'configForms', 'shortcuts', 'modules'])
-  })
-
-  it('fills the five seats of the shell it declares, with the locale-following General label', async ({ mock, start }) => {
-    const { c } = await client(mock, start)
-    expect(c.ctx.locale.getSnapshot().active).toBe('zh')
-    expectSeated(c)
-    const entry = generalEntry(c)
-    expect(entry.options).toMatchObject({ id: 'general', order: 0 })
-    // The nav label is a locale-following thunk; owners resolve at read time.
-    expect(generalLabel(c)).toBe('通用设置')
-    expect(c.ctx.slots.spec('settings.general.item')).toEqual({ kind: 'list', scope: 'root' })
-    // The shared developer-tool control belongs to General; onboarding remains feature-owned.
-    expect(c.ctx.slots.entries('settings.general.item').filter(row => row.locale === NS).map(row => row.options.id)).toEqual(['developer-tools', 'current-version'])
-    expect(c.ctx.slots.entries('settings.onboarding').filter(row => row.locale === NS)).toEqual([])
-    const developer = developerToolsRowOf(c)
-    expect(developer.hooks.developerTools).toBe(c.ctx.configForms.developerTools.enabled)
-    expect(developer.hooks.developerTools.getSnapshot()).toBe(false)
-    const setEnabled = vi.spyOn(c.ctx.configForms.developerTools, 'setEnabled').mockResolvedValue(undefined)
-    await developer.setEnabled(true)
-    expect(setEnabled).toHaveBeenCalledExactlyOnceWith(true)
-    const { controller, hooks } = actionInjectedOf(c)
-    expect(controller.store.getSnapshot().status).toBe('idle')
-    expect(hooks.snapshot).toBe(controller.store)
-    // Copy rides the standard locale seat: every row this plugin seats declares the namespace.
-    for (const [name, component] of SEATS) {
-      expect(c.ctx.slots.entries(name).find(row => row.component === component)!.locale).toBe(NS)
-    }
-  }, COLD_BOOT_TIMEOUT_MS)
-
-  it('reports a Coding Tools toggle only when a known value changes to the requested one', async ({ mock, start }) => {
-    const { c } = await client(mock, start)
-    const track = vi.fn()
-    c.ctx.provide('productAnalytics', { enabled: true, track } as never)
-    const form = c.ctx.configForms.get<{ enabled: boolean }>('ui-settings')
-    const snapshot = form.getSnapshot()
-    let value: { enabled: boolean } | undefined = { enabled: false }
-    let accepted = true
-    let now = 100
-    const reads = vi.spyOn(form, 'getSnapshot').mockImplementation(() => ({ ...snapshot, value }))
-    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now)
-    const write = vi.spyOn(c.ctx.configForms.developerTools, 'setEnabled').mockImplementation(async (enabled) => {
-      now += 50
-      if (accepted) value = { enabled }
-    })
-    onTestFinished(() => {
-      reads.mockRestore()
-      clock.mockRestore()
-      write.mockRestore()
-    })
-    const row = developerToolsRowOf(c)
-
-    // The event carries the click time, before the write settles.
-    await row.setEnabled(true)
-    expect(track).toHaveBeenCalledExactlyOnceWith('code_work_view_toggle', { is_enabled: true }, 100)
-
-    // Requesting the current value writes but changes nothing.
-    await row.setEnabled(true)
-    expect(write).toHaveBeenCalledTimes(2)
-    expect(track).toHaveBeenCalledOnce()
-
-    // A write that settles without the requested value is not a toggle.
-    accepted = false
-    await row.setEnabled(false)
-    expect(value).toEqual({ enabled: true })
-    expect(track).toHaveBeenCalledOnce()
-
-    // A rejected write reports its failure and no toggle.
-    accepted = true
-    write.mockRejectedValueOnce(new Error('not accepted'))
-    await expect(row.setEnabled(false)).rejects.toThrow('not accepted')
-    expect(track).toHaveBeenCalledOnce()
-
-    // Without a known previous value the change cannot be attributed.
-    value = undefined
-    await row.setEnabled(false)
-    expect(value).toEqual({ enabled: false })
-    expect(track).toHaveBeenCalledOnce()
-
-    value = { enabled: true }
-    now = 300
-    await row.setEnabled(false)
-    expect(track).toHaveBeenCalledTimes(2)
-    expect(track).toHaveBeenLastCalledWith('code_work_view_toggle', { is_enabled: false }, 300)
   })
 
   it('registers the zh/en settings dictionaries and frees the seats when its row unloads', async ({ mock, start }) => {

@@ -57,7 +57,6 @@ These packages own the selector and its two directory sources.
 
 - [Model selection](../ui-model-selection/README.md) — label placement and selection behavior.
 - [DeepSeek transport](../../llm/llm-deepseek/README.md) — built-in model catalog.
-- [DeepSeek account](../../llm/llm-deepseek-account/README.md) — account-provided model directory.
 
 -----
 

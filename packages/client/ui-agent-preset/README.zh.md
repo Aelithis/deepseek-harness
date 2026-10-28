@@ -37,7 +37,6 @@ kind: "package-reference"
 
 进入创造模式会为接收该选择的空白 Session 选择 `cordis`，不改变新任务默认值或代码工作工具设置。尚未绑定工作区或空白 Session 时，选择等待绑定完成后应用。应用后，创造 Session 保留该预设；之后真正创建的新 Session 使用配置的默认值，例如标准模式。
 
-在桌面端，模式选择器中的直接选择切换到另一个内置 preset 时，可选的[产品埋点](../product-analytics/README.zh.md)服务会收到 `agent_preset_switch`：未绑定 Session 的选择在暂存给下一个 Session 时计入，已绑定空白 Session 的选择在 Host 应用后计入。事件携带按 preset id 映射的来源与目标类别（`cordis` 记为 `creator`；`ptc`、`minimal`、`standard` 保持原 id；其他 id 记为 `other`），以及选择时已知的代码工作工具设置。选择自定义目标、被拒绝的选择、Host 最终落在其他 preset 的选择、默认值修改及其空白 Session 同步均不报告；来源模式或代码工作工具设置未知时做出的选择同样不报告。不采集自定义 preset 的 id 和名称。
 
 <a id="understand-the-implementation"></a>
 ## 理解实现

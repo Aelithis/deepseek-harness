@@ -23,8 +23,8 @@ async function fixture(failure = false, preferences: CotTranslationPreferences =
   class TestRemote extends Service {
     constructor() { super(ctx, 'remote') }
     $on(event: string, listener: () => void) {
-      expect(['settings/document-updated', 'llm/adapters-updated', 'deepseek-account/session-expired',
-        'deepseek-account/model-sign-in-required', 'credentials/record-updated', 'credentials/reference-updated']).toContain(event)
+      expect(['settings/document-updated', 'llm/adapters-updated',
+        'credentials/record-updated', 'credentials/reference-updated']).toContain(event)
       let group = listeners.get(event)
       if (group === undefined) { group = new Set(); listeners.set(event, group) }
       group.add(listener)
@@ -396,7 +396,7 @@ it.each(['deepseek-account', 'deepseek-official'] as const)('binds selected paid
   } finally { await b.ctx.fiber.dispose() }
 })
 
-it.each(['llm/adapters-updated', 'deepseek-account/session-expired', 'deepseek-account/model-sign-in-required',
+it.each(['llm/adapters-updated',
   'credentials/record-updated', 'credentials/reference-updated'])('refreshes eligibility when %s is forwarded', async (event) => {
   const b = await fixture()
   try {

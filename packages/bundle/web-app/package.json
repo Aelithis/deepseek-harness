@@ -182,13 +182,8 @@
     "@deepseek-ai/schemastery": "workspace:~",
     "commander": "^15.0.0",
     "open": "^11.0.2",
-    "@deepseek-ai/dsh-api-account-controller": "workspace:*",
-    "@deepseek-ai/dsh-client-ui-settings-account": "workspace:*",
     "@deepseek-ai/dsh-client-shortcuts": "workspace:*",
     "@deepseek-ai/dsh-client-ui-shortcuts": "workspace:*",
-    "@deepseek-ai/dsh-client-product-analytics": "workspace:*",
-    "@deepseek-ai/dsh-host-product-telemetry-otel": "workspace:*",
-    "@deepseek-ai/dsh-client-ui-settings-session-log": "workspace:*",
     "@deepseek-ai/dsh-harness-dev-context": "workspace:*"
   },
   "peerDependencies": {
@@ -207,7 +202,6 @@
     "@deepseek-ai/dsh-session-projection": "workspace:*",
     "@deepseek-ai/dsh-shell-env": "workspace:*",
     "@deepseek-ai/dsh-typert-registry": "workspace:*",
-    "@deepseek-ai/libreoffice-kit": "^0.1.5",
-    "@deepseek-ai/dsh-otel": "workspace:*"
+    "@deepseek-ai/libreoffice-kit": "^0.1.5"
   }
 }

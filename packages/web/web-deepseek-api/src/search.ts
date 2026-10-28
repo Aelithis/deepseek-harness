@@ -18,9 +18,6 @@ export const DEEPSEEK_WEB_API_BASE_URL = 'https://api.deepseek.com/v1/tools'
 /** Default Search API result count, the service's own default. */
 export const DEEPSEEK_DEFAULT_COUNT = 10
 
-/** Longest `ori_question` the Search API accepts, in characters. */
-const ORIGINAL_QUESTION_MAX_CHARS = 128
-
 /** Settings named by endpoint failures of either API in this package. */
 export const DEEPSEEK_WEB_API_GUIDANCE: Omit<DeepSeekWebGuidance, 'subject'> = {
   plugin: 'web-deepseek-api', field: 'baseURL', label: 'Search / Fetch API base URL', page: 'Web search',
@@ -32,8 +29,6 @@ export interface DeepSeekSearchApiOptions extends DeepSeekWebAuth {
   baseURL: string
   /** Results requested per search, from 1 through 50; a smaller request bound wins. */
   count: number
-  /** Read the user question that triggered the search; undefined or blank sends none. */
-  originalQuestion?: () => string | undefined
 }
 
 /**
@@ -71,38 +66,24 @@ export class DeepSeekSearchApiProvider implements WebSearchProvider {
    */
   constructor(private readonly resolveOptions: () => DeepSeekSearchApiOptions) {}
 
-  available(): boolean {
+  async available(): Promise<boolean> {
     const options = this.resolveOptions()
-    return hasDeepSeekWebCredential(options) && URL.canParse(options.baseURL) && isPositiveInteger(options.count)
+    return await hasDeepSeekWebCredential(options) && URL.canParse(options.baseURL) && isPositiveInteger(options.count)
   }
 
   search(request: WebSearchRequest, signal?: AbortSignal): Promise<WebSearchResult> {
     const options = this.resolveOptions()
-    const question = boundedQuestion(options.originalQuestion?.())
     return dispatchDeepSeekWeb(options, {
       endpoint: `${options.baseURL.replace(/\/+$/u, '')}/search`,
       body: {
         query: request.query,
         count: Math.min(options.count, request.maxResults ?? options.count),
         need_content: false,
-        ...question === undefined ? {} : { ori_question: question },
       },
       decode: mapSearchResponse,
       guidance: { subject: 'Search', ...DEEPSEEK_WEB_API_GUIDANCE },
     }, signal)
   }
-}
-
-/**
- * Bound the triggering question to what `ori_question` accepts: whitespace
- * collapses to single spaces and the first 128 characters remain.
- * @param question - the user question, when one exists.
- * @returns the bounded question, or undefined when nothing remains.
- */
-function boundedQuestion(question: string | undefined): string | undefined {
-  const collapsed = question?.replace(/\s+/gu, ' ').trim() ?? ''
-  if (collapsed.length === 0) return undefined
-  return Array.from(collapsed).slice(0, ORIGINAL_QUESTION_MAX_CHARS).join('')
 }
 
 /** True for positive integral request limits. */

@@ -2,10 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import type { Session } from '@deepseek-ai/dsh-session'
-import WebRuntime from '@deepseek-ai/dsh-web'
-import type { DeepSeekAccount } from '@deepseek-ai/dsh-deepseek-account'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import WebRuntime from '@deepseek-ai/dsh-web'
 import {
   DeepSeekSearchApiProvider,
   DEEPSEEK_WEB_API_BASE_URL,
@@ -68,24 +67,24 @@ describe('mapSearchResponse', () => {
 })
 
 describe('DeepSeekSearchApiProvider availability', () => {
-  it('is unavailable without a key', () => {
-    expect(searchProvider({ ...options, apiKey: '' }).available()).toBe(false)
+  it('is unavailable without a key', async () => {
+    expect(await searchProvider({ ...options, apiKey: '' }).available()).toBe(false)
   })
 
-  it('is available with a key', () => {
-    expect(searchProvider(options).available()).toBe(true)
+  it('is available with a key', async () => {
+    expect(await searchProvider(options).available()).toBe(true)
   })
 
-  it('is available with only an account token resolver', () => {
-    expect(searchProvider({ ...options, apiKey: '', resolveAccountToken: async () => 'account-token' }).available()).toBe(true)
+  it('is unavailable when a resolver returns no credential', async () => {
+    expect(await searchProvider({ ...options, apiKey: '', resolveApiKey: async () => undefined }).available()).toBe(false)
   })
 
-  it('is misconfigured when the base URL is unparseable', () => {
-    expect(searchProvider({ ...options, baseURL: 'not a url' }).available()).toBe(false)
+  it('is misconfigured when the base URL is unparseable', async () => {
+    expect(await searchProvider({ ...options, baseURL: 'not a url' }).available()).toBe(false)
   })
 
-  it.each([0, 1.5])('is unavailable with invalid count %j', (count) => {
-    expect(searchProvider({ ...options, count }).available()).toBe(false)
+  it.each([0, 1.5])('is unavailable with invalid count %j', async (count) => {
+    expect(await searchProvider({ ...options, count }).available()).toBe(false)
   })
 })
 
@@ -107,28 +106,6 @@ describe('DeepSeekSearchApiProvider request mapping', () => {
     expect(JSON.parse(init.body)).toEqual(expected)
   })
 
-  it.each([
-    ['the collapsed question', '  How do\n\tI  install it?  ', 'How do I install it?'],
-    ['the first 128 characters', `${'问'.repeat(127)}题题`, `${'问'.repeat(127)}题`],
-    ['whole surrogate pairs', `${'a'.repeat(127)}😀😀`, `${'a'.repeat(127)}😀`],
-  ])('sends %s as ori_question', async (_case, question, expected) => {
-    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => jsonResponse(searchResponse()))
-    vi.stubGlobal('fetch', fetchMock)
-    await searchProvider({ ...options, originalQuestion: () => question }).search({ query: 'q', maxResults: 8 })
-    const body = fetchMock.mock.calls[0]?.[1]?.body
-    if (typeof body !== 'string') throw new Error('expected JSON request body')
-    expect(JSON.parse(body)).toEqual({ query: 'q', count: 8, need_content: false, ori_question: expected })
-  })
-
-  it.each([undefined, '', ' \n '])('omits ori_question for question %j', async (question) => {
-    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => jsonResponse(searchResponse()))
-    vi.stubGlobal('fetch', fetchMock)
-    await searchProvider({ ...options, originalQuestion: () => question }).search({ query: 'q' })
-    const body = fetchMock.mock.calls[0]?.[1]?.body
-    if (typeof body !== 'string') throw new Error('expected JSON request body')
-    expect(JSON.parse(body)).not.toHaveProperty('ori_question')
-  })
-
   it('forwards the abort signal', async () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => jsonResponse(searchResponse()))
     vi.stubGlobal('fetch', fetchMock)
@@ -139,50 +116,29 @@ describe('DeepSeekSearchApiProvider request mapping', () => {
   })
 })
 
-describe('Search API triggering question', () => {
-  type DerivedMessage = ReturnType<Session['deriveMessages']>[number]
-
-  /** One derived user-role message with the given source and blocks. */
-  function userMessage(id: string, source: DerivedMessage['source'], content: DerivedMessage['content']): DerivedMessage {
-    return { id: id as DerivedMessage['id'], role: 'user', source, content }
-  }
-
-  /**
-   * Run one search inside an initiator whose derived history holds a human
-   * prompt followed by injected user-role context.
-   * @param config - extra plugin configuration.
-   * @returns the parsed Search API request body.
-   */
-  async function searchFromPrompt(config: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
+describe('Search API session privacy', () => {
+  it('does not send the user prompt from the initiating session', async () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => jsonResponse(searchResponse()))
     vi.stubGlobal('fetch', fetchMock)
     const ctx = new Context()
     try {
+      await ctx.plugin(SessionStore)
       await ctx.plugin(AgentRegistry)
       await ctx.plugin(WebRuntime, { searchProvider: 'deepseek-search-api' })
-      await ctx.plugin(webApiPlugin, { apiKey: 'ds-key', ...config })
-      const messages = [
-        userMessage('m1', { kind: 'user' }, [{ type: 'text', text: 'Earlier question' }]),
-        userMessage('m2', { kind: 'user' }, [
-          { type: 'text', text: 'What changed' }, { type: 'reasoning', text: 'not prompt text' }, { type: 'text', text: 'in DeepSeek V4?' },
-        ]),
-        userMessage('m3', { kind: 'system-prompt' }, [{ type: 'text', text: 'Injected instructions' }]),
-      ]
-      const session: Pick<Session, 'deriveMessages' | 'requestContext'> = { deriveMessages: () => messages, requestContext: () => undefined }
+      await ctx.plugin(webApiPlugin, { apiKey: 'ds-key' })
+      const session = ctx.sessions.create(SessionId('search-privacy'))
+      session.append('turn/start', { turn: 1 })
+      session.append('user/message', createUserMessage({
+        content: [{ type: 'text', text: 'Sensitive original prompt: private account number 12345' }],
+        source: { kind: 'user' },
+      }), { surfaceOp: 'append' })
       const agent = { session } as Agent
       await ctx.agents.withInitiator(agent, () => ctx.web.search({ query: 'DeepSeek V4' }))
       const body = fetchMock.mock.calls[0]?.[1]?.body
       if (typeof body !== 'string') throw new Error('expected JSON request body')
-      return JSON.parse(body) as Record<string, unknown>
+      expect(JSON.parse(body)).toEqual({ query: 'DeepSeek V4', count: 10, need_content: false })
+      expect(body).not.toContain('Sensitive original prompt')
     } finally { await ctx.fiber.dispose() }
-  }
-
-  it('sends the latest human prompt as ori_question', async () => {
-    expect(await searchFromPrompt()).toMatchObject({ ori_question: 'What changed in DeepSeek V4?' })
-  })
-
-  it('omits ori_question when sending it is disabled', async () => {
-    expect(await searchFromPrompt({ sendOriginalQuestion: false })).not.toHaveProperty('ori_question')
   })
 })
 
@@ -228,32 +184,5 @@ describe('Search API configuration and failures', () => {
         + 'change and save Search / Fetch API base URL. If that settings page is unavailable, the user can set '
         + 'web-deepseek-api.baseURL to a trusted DeepSeek endpoint. Only the user should choose or change the endpoint.',
     })
-  })
-})
-
-describe('Search API account route', () => {
-  it('authenticates with the account token when the initiating Session uses the account route', async () => {
-    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => jsonResponse({ results: [] }))
-    vi.stubGlobal('fetch', fetchMock)
-    const asked: string[] = []
-    const ctx = new Context()
-    try {
-      await ctx.plugin(SessionStore)
-      await ctx.plugin(AgentRegistry)
-      await ctx.plugin(WebRuntime, { searchProvider: 'deepseek-search-api' })
-      ctx.provide('deepseekAccount', {
-        resolveToken: async (url: string) => { asked.push(url); return 'account-token' },
-      } as DeepSeekAccount)
-      await ctx.plugin(webApiPlugin, { apiKey: 'ds-key' })
-      const session = ctx.sessions.create(SessionId('web-search-api-account'))
-      session.append('turn/start', { turn: 1 })
-      session.append('request/context', { provider: 'deepseek-account', model: 'deepseek-v4-flash' })
-      await ctx.agents.withInitiator({ session } as Agent, () => ctx.web.search({ query: 'q' }))
-      expect(asked).toEqual(['https://api.deepseek.com/v1/tools/search'])
-      const headers = (fetchMock.mock.calls[0]?.[1]?.headers ?? {}) as Record<string, string>
-      expect(headers['x-dsh-auth-token']).toBe('account-token')
-      expect(headers).not.toHaveProperty('authorization')
-      expect(headers).not.toHaveProperty('x-api-key')
-    } finally { await ctx.fiber.dispose() }
   })
 })

@@ -56,6 +56,7 @@ const PiAiConfig = Schema.object({
 })
 
 const DeepSeekConfig = Schema.object({
+  enabled: Schema.boolean().default(false),
   apiKeyEnv: Schema.string().role('credential-ref'),
   baseURL: Schema.string().pattern(/^https:\/\//),
   reasoningEffort: Schema.union(['off', 'low', 'high', 'max']),
@@ -99,6 +100,7 @@ function wireNamespaces(): SettingsNamespaceView[] {
       ns: 'llm-deepseek',
       schema: JSON.parse(JSON.stringify(DeepSeekConfig.toJSON())) as JsonValue,
       value: {
+        enabled: true,
         apiKeyEnv: 'DEEPSEEK_API_KEY',
         baseURL: 'https://base',
         defaultContextWindow: 1_000_000,
@@ -106,7 +108,7 @@ function wireNamespaces(): SettingsNamespaceView[] {
         models: DEFAULT_DEEPSEEK_MODELS,
       },
       base: { defaultContextWindow: 1_000_000, maxTokens: 256_000, models: DEFAULT_DEEPSEEK_MODELS },
-      user: { baseURL: 'https://base' },
+      user: { enabled: true, baseURL: 'https://base' },
       autoGenerate: true, applies: 'live',
       secrets: [],
       revision: 0,
@@ -377,8 +379,8 @@ describe('ModelsSection', () => {
     const before = controller.store.getSnapshot().namespaces.get('llm-deepseek')!
     mirror.acceptView({
       ...before,
-      value: { apiKeyEnv: 'DEEPSEEK_API_KEY', baseURL: 'https://current.example', models: DEFAULT_DEEPSEEK_MODELS },
-      user: { baseURL: 'https://current.example' },
+      value: { enabled: true, apiKeyEnv: 'DEEPSEEK_API_KEY', baseURL: 'https://current.example', models: DEFAULT_DEEPSEEK_MODELS },
+      user: { enabled: true, baseURL: 'https://current.example' },
       revision: 1,
     })
     const read = Promise.withResolvers<RemoteResult<Record<string, CredentialInfo>>>()
@@ -425,8 +427,8 @@ describe('ModelsSection', () => {
     const before = controller.store.getSnapshot().namespaces.get('llm-deepseek')!
     mirror.acceptView({
       ...before,
-      value: { apiKeyEnv: 'DEEPSEEK_API_KEY', baseURL: 'https://recovered.example', models: DEFAULT_DEEPSEEK_MODELS },
-      user: { baseURL: 'https://recovered.example' },
+      value: { enabled: true, apiKeyEnv: 'DEEPSEEK_API_KEY', baseURL: 'https://recovered.example', models: DEFAULT_DEEPSEEK_MODELS },
+      user: { enabled: true, baseURL: 'https://recovered.example' },
       revision: 2,
     })
     const read = Promise.withResolvers<RemoteResult<Record<string, CredentialInfo>>>()
@@ -963,8 +965,8 @@ describe('ModelsSection', () => {
     const namespace: SettingsNamespaceView = {
       ...wireNamespaces()[0]!,
       ns: 'llm-deepseek',
-      value: { apiKeyEnv: 'DEEPSEEK_API_KEY', models: DEFAULT_DEEPSEEK_MODELS },
-      user: {},
+      value: { enabled: true, apiKeyEnv: 'DEEPSEEK_API_KEY', models: DEFAULT_DEEPSEEK_MODELS },
+      user: { enabled: true },
     }
     const { face, mutate, set } = scriptedFace({
       mutate: vi.fn(() => Promise.resolve(remoteOk(namespace))),
@@ -2077,6 +2079,26 @@ describe('ModelsSection', () => {
     ])
   })
 
+  it('clears the deleted provider default without selecting another provider', async () => {
+    const { face, mutate, controller } = await mountSection()
+    const current = controller.store.getSnapshot()
+    controller.store.update((state) => {
+      state.namespaces = new Map([...current.namespaces, ['agent-default-model', {
+        ns: 'agent-default-model', schema: {}, value: { provider: 'openai', model: 'chosen' },
+        user: { provider: 'openai', model: 'chosen' }, revision: 7,
+        autoGenerate: false, applies: 'live', secrets: [],
+      }]])
+    })
+    await removeProviderProfile(operationsWith(face), controller, {
+      provider: 'openai', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'openai'],
+    })
+    expect(mutate.mock.calls[1]).toEqual(['agent-default-model', [
+      { op: 'unset', path: ['provider'] },
+      { op: 'unset', path: ['model'] },
+      { op: 'unset', path: ['reasoningEffort'] },
+    ], 7])
+  })
+
   it('keeps the snapshot untouched and reports the message when a removal write is refused', async () => {
     const { face, controller } = await mountSection({
       mutate: vi.fn(() => Promise.resolve(remoteFail('read-only', 'settings/rejected'))),
@@ -2410,16 +2432,4 @@ it('keeps an inherited profile endpoint ahead of dynamic provider configuration'
   const input = screen.getByLabelText<HTMLInputElement>(en.baseUrl)
   expect(input.placeholder).toBe('https://team.example/openai/v1')
   expect(input.getAttribute('aria-describedby')).toBeNull()
-})
-
-it('renders the localized account row as signed in without an edit action', async () => {
-  const scripted = scriptedFace({})
-  const { controller } = await mountFace(scripted)
-  const row = controller.store.getSnapshot().rows[0]!
-  await act(async () => { controller.store.update((state) => {
-    state.rows = [{ ...row, accountAvailable: true, entry: { ...row.entry, provider: 'deepseek-account' } }]
-  }) })
-  const item = screen.getByText(en.deepSeekAccount).closest('li')!
-  expect(within(item).getByText(en.accountSignedIn)).toBeTruthy()
-  expect(within(item).queryByText(en.edit)).toBeNull()
 })

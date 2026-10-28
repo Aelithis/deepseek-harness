@@ -51,10 +51,10 @@ describe('DeepSeek Fetch API', () => {
         + 'web-deepseek-api.baseURL to a trusted DeepSeek endpoint. Only the user should choose or change the endpoint.',
     })
   })
-  it('is available only with a credential source and a parseable base', () => {
-    expect(fetchProvider(options).available()).toBe(true)
-    expect(fetchProvider({ ...options, apiKey: '' }).available()).toBe(false)
-    expect(fetchProvider({ ...options, baseURL: 'not a url' }).available()).toBe(false)
+  it('is available only with a credential source and a parseable base', async () => {
+    expect(await fetchProvider(options).available()).toBe(true)
+    expect(await fetchProvider({ ...options, apiKey: '' }).available()).toBe(false)
+    expect(await fetchProvider({ ...options, baseURL: 'not a url' }).available()).toBe(false)
   })
   it('unregisters both providers with its plugin fiber', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ title: '', content: 'body' })))

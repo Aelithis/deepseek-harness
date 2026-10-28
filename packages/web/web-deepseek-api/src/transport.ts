@@ -10,17 +10,13 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent'
 import { credentialRef, type CredentialRef } from '@deepseek-ai/dsh-credentials'
-import type {} from '@deepseek-ai/dsh-deepseek-account'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
 import { WebError } from '@deepseek-ai/dsh-web'
 
-const ACCOUNT_PROVIDER = 'deepseek-account'
 const USER_AGENT = 'deepseek-harness/0.0.1'
 
 /** Authentication and endpoint values resolved once for an operation. */
 export interface DeepSeekWebAuth {
-  /** Resolve an allowed account token; undefined selects API-key authentication. */
-  resolveAccountToken?: (endpoint: string) => Promise<string | undefined>
   /** Literal API key; takes precedence over the credential resolver. */
   apiKey?: string
   /** Resolve the current API key without retaining it. */
@@ -51,7 +47,7 @@ interface DeepSeekWebRequest<T> {
   body: object
   /** Protocol headers without credentials. */
   headers?: Readonly<Record<string, string>>
-  /** Additional API-key headers; not applied to account tokens. */
+  /** Additional API-key headers. */
   apiKeyHeaders?: (key: string) => Readonly<Record<string, string>>
   /** Validate and project the response. */
   decode: (payload: unknown) => T
@@ -75,13 +71,6 @@ export function deepSeekWebAuth(ctx: Context, config: { apiKey: string | undefin
     : undefined
   return {
     ...literalApiKey === undefined ? {} : { apiKey: literalApiKey },
-    resolveAccountToken: async (endpoint) => {
-      // The latest request context names the route that served the model
-      // request which called this search, as account sign-out reads it.
-      const provider = ctx.get('agents')?.currentInitiator()?.session.requestContext()?.provider
-      if (provider !== ACCOUNT_PROVIDER) return undefined
-      return await ctx.get('deepseekAccount')?.resolveToken(endpoint)
-    },
     resolveApiKey: async () => {
       const credentials = ctx.get('credentials')
       if (credentials !== undefined) return (await credentials.resolve(apiKeyEnv))?.value
@@ -99,8 +88,10 @@ export function deepSeekWebAuth(ctx: Context, config: { apiKey: string | undefin
  * @param auth - Sources for the operation.
  * @returns Whether a literal key or resolver is present.
  */
-export function hasDeepSeekWebCredential(auth: DeepSeekWebAuth): boolean {
-  return (auth.apiKey?.length ?? 0) > 0 || auth.resolveApiKey !== undefined || auth.resolveAccountToken !== undefined
+export async function hasDeepSeekWebCredential(auth: DeepSeekWebAuth): Promise<boolean> {
+  if ((auth.apiKey?.length ?? 0) > 0) return true
+  const key = auth.resolveApiKey === undefined ? undefined : await resolveCredential(auth.resolveApiKey)
+  return key !== undefined && key.length > 0
 }
 
 /** Narrow a remote JSON object.
@@ -120,8 +111,7 @@ export function invalidResponse(): WebError {
 
 /** Authentication headers for one operation, tagged by the credential that produced them. */
 interface SearchAuth {
-  /** `account` for a DeepSeek account token, `api-key` for an API key. */
-  readonly kind: 'account' | 'api-key'
+  readonly kind: 'api-key'
   /** Headers carrying the credential. */
   readonly headers: Readonly<Record<string, string>>
 }
@@ -186,9 +176,6 @@ export async function dispatchDeepSeekWeb<T>(
       // malformed/non-JSON error body (normal for gateway 5xx/429s) can only
       // cost a richer provider message, never the real error.
     }
-    // The account service released this token only for its inference
-    // origin, so the endpoint is not what the user must change.
-    if (status === 401 && auth.kind === 'account') throw accountRejectedError(message)
     throw searchEndpointError(guidance, endpoint, message)
   }
 
@@ -203,15 +190,6 @@ export async function dispatchDeepSeekWeb<T>(
       : `DeepSeek returned an unprocessable response body: ${String(error)}`
     throw searchEndpointError(guidance, endpoint, message, error)
   }
-}
-
-/** Replace endpoint guidance with sign-in guidance when DeepSeek rejects the account token. */
-function accountRejectedError(message: string): WebError {
-  return new WebError(
-    `${message}\n\nDeepSeek rejected the account sign-in used for this web request. `
-    + 'Guide the user to sign in to DeepSeek again; the endpoint does not need changing.',
-    'WEB_PROVIDER_ERROR',
-  )
 }
 
 /**
@@ -239,18 +217,13 @@ function searchEndpointError(
 /**
  * Resolve one operation's authentication headers without retaining a credential on the provider.
  * @param options - the caller's snapshot, so the credential and the endpoint it is sent to come from one section.
- * @param request - the resolved request; its endpoint scopes the account token.
+ * @param request - the resolved request and its protocol headers.
  * @param signal - abort signal for the surrounding operation.
- * @returns the account-token header when one resolves, otherwise the API-key headers, tagged by credential kind.
+ * @returns the API-key request headers.
  */
 async function authHeaders(
   options: DeepSeekWebAuth, request: DeepSeekWebRequest<unknown>, signal?: AbortSignal,
 ): Promise<SearchAuth> {
-  const { resolveAccountToken } = options
-  const token = resolveAccountToken === undefined
-    ? undefined
-    : await resolveCredential(() => resolveAccountToken(request.endpoint), signal)
-  if (token !== undefined && token.length > 0) return { kind: 'account', headers: { 'x-dsh-auth-token': token } }
   const apiKey = await resolveApiKey(options, request.guidance.plugin, signal)
   return { kind: 'api-key', headers: {
     ...request.apiKeyHeaders?.(apiKey),
@@ -276,8 +249,7 @@ async function resolveApiKey(options: DeepSeekWebAuth, plugin: string, signal?: 
   throw new WebError(
     `DeepSeek web access has no API key for "${ref}"; store it through the credentials service`
       + ' (the web Models page writes it), export it in the launching environment, or set a literal'
-      + ` "apiKey" in the ${plugin} config; a conversation using a DeepSeek Account model`
-      + ' searches with the account sign-in instead',
+      + ` "apiKey" in the ${plugin} config`,
     'WEB_PROVIDER_CREDENTIAL_MISSING',
   )
 }

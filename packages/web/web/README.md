@@ -7,6 +7,8 @@ kind: "package-reference"
 
 English | [中文](README.zh.md)
 
+Search requires an explicit `searchProvider`; an absent selection disables search. Fetch keeps its independent provider selection. Provider availability may resolve managed credentials asynchronously.
+
 ## Summary
 
 Use `dsh-web` to search the web or fetch a URL without tying callers to a specific vendor. It selects a usable backend for each operation and gives callers consistent cancellation, errors, and result limits. Choose it for plugins or tools that call `ctx.web.search()` or `ctx.web.fetch()`; the shipped `dsh-tool-web` tools load it for you. A search or fetch requires a configured, usable provider because this package does not make network requests on its own.
@@ -33,7 +35,7 @@ Choose the service when a plugin or tool must search or fetch without hard-codin
 
 ### Minimal configuration
 
-Load the service and let a single mounted backend auto-select, or pin a provider id with `searchProvider`/`fetchProvider`. The environment variables `$DSH_WEB_SEARCH_PROVIDER` and `$DSH_WEB_FETCH_PROVIDER` feed the same fields and are not a separate priority chain.
+Load the service and select a search backend with `searchProvider`. Fetch may select its sole usable backend or use `fetchProvider`. The environment variables `$DSH_WEB_SEARCH_PROVIDER` and `$DSH_WEB_FETCH_PROVIDER` feed the same fields and are not a separate priority chain.
 
 ```yaml
 - name: '@deepseek-ai/dsh-web'
@@ -43,7 +45,7 @@ Load the service and let a single mounted backend auto-select, or pin a provider
 
 | Field | Default | Meaning |
 |---|---|---|
-| `searchProvider` | (unset) | Pinned search provider id; unset auto-selects when exactly one is usable |
+| `searchProvider` | (unset) | Explicit search provider id; unset disables search |
 | `fetchProvider` | (unset) | Pinned fetch provider id; unset auto-selects when exactly one is usable |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-web) is the exhaustive source for every accepted field and its JSDoc.
@@ -96,7 +98,7 @@ This section explains the design decisions behind the service; the observable be
 The package is built on one deliberate separation:
 
 - **One seam, two independent operations.** Search and fetch share no request schema and no business logic, but they share one service so provider selection, cancellation, errors, and product configuration have a single owner. The parallel `Search`/`Fetch` method pairs are intentional.
-- **Selection is never order-dependent.** A capability either pins a provider id or auto-selects when exactly one usable provider is registered; `search()`/`fetch()` resolve the provider at execution time.
+- **Selection is never order-dependent.** Search requires a selected provider; fetch may auto-select its only usable provider; `search()`/`fetch()` resolve the provider at execution time.
 - **The service owns the result bound.** `maxResults` is enforced by the seam after the provider returns, so an over-returning provider can never leak more sources than the caller asked for.
 
 ### Source map

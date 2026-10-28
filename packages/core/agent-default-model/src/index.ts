@@ -10,7 +10,7 @@ import type { Volatile } from '@deepseek-ai/cordis'
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { ModelSelection } from '@deepseek-ai/dsh-agent'
-import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
+import { LlmError, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-config-editor'
 
 declare module '@deepseek-ai/cordis' {
@@ -22,10 +22,10 @@ declare module '@deepseek-ai/cordis' {
 
 /** Default model selection supplied by plugin configuration. */
 export interface Config {
-  /** Registered provider route. */
-  provider: Volatile<string>
+  /** Registered provider route; absent until explicitly selected. */
+  provider: Volatile<string | undefined>
   /** Provider-owned model id. */
-  model: Volatile<string>
+  model: Volatile<string | undefined>
   /** Adapter-owned reasoning effort; omission follows the provider default. */
   reasoningEffort: Volatile<string | undefined>
 }
@@ -49,8 +49,8 @@ export class AgentDefaultModelConfig extends Service {
   private saves: Promise<void> = Promise.resolve()
 
   static Config = z.object({
-    provider: z.string().required().volatile(),
-    model: z.string().required().volatile(),
+    provider: z.string().volatile(),
+    model: z.string().volatile(),
     reasoningEffort: z.string().volatile(),
   })
 
@@ -65,9 +65,21 @@ export class AgentDefaultModelConfig extends Service {
    * @returns a detached provider, model, and optional reasoning selection.
    */
   currentSelection(): ModelSelection {
+    const configured = this.configuredSelection()
+    if (configured === null) throw new LlmError('尚未选择模型，请先配置供应商并选择模型。', 'MODEL_NOT_CONFIGURED')
+    return configured
+  }
+
+  /** Read the saved selection, or null before a model has been selected.
+   * @returns the configured selection without inventing a provider.
+   */
+  configuredSelection(): ModelSelection | null {
+    const provider = this.config.provider.get()
+    const model = this.config.model.get()
+    if (provider === undefined || model === undefined) return null
     const reasoningEffort = this.config.reasoningEffort.get()
     return selection({
-      provider: this.config.provider.get(), model: this.config.model.get(),
+      provider, model,
       ...reasoningEffort === undefined ? {} : { reasoningEffort },
     })
   }

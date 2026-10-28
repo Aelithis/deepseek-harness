@@ -7,6 +7,8 @@ kind: "package-reference"
 
 [English](README.md) | 中文
 
+搜索必须显式配置 `searchProvider`，未配置时不执行搜索。网页读取独立选择供应商。供应商可异步解析托管凭据以判断可用性。
+
 ## 概述
 
 使用 `dsh-web` 搜索 web 或抓取 URL，而无需让调用方依赖特定厂商。它为每项操作选择可用后端，并为调用方提供一致的取消、错误和结果上限。在调用 `ctx.web.search()` 或 `ctx.web.fetch()` 的插件或工具中选择它；已交付的 `dsh-tool-web` 工具会为你加载它。搜索或抓取需要已配置且可用的提供方，因为本包自身不发起网络请求。
@@ -33,7 +35,7 @@ kind: "package-reference"
 
 ### 最小配置
 
-加载服务并让唯一挂载的后端自动选择，或用 `searchProvider`／`fetchProvider` 固定提供方 id。环境变量 `$DSH_WEB_SEARCH_PROVIDER` 与 `$DSH_WEB_FETCH_PROVIDER` 提供相同字段，不是另一条优先级链。
+搜索须通过 `searchProvider` 显式选择后端；网页读取可使用唯一可用的后端，或用 `fetchProvider` 固定提供方 id。环境变量 `$DSH_WEB_SEARCH_PROVIDER` 与 `$DSH_WEB_FETCH_PROVIDER` 提供相同字段，不是另一条优先级链。
 
 ```yaml
 - name: '@deepseek-ai/dsh-web'
@@ -43,7 +45,7 @@ kind: "package-reference"
 
 | 字段 | 默认值 | 含义 |
 |---|---|---|
-| `searchProvider` | （未设置） | 固定的搜索提供方 id；未设置时仅在恰好一个可用时自动选择 |
+| `searchProvider` | （未设置） | 显式选择搜索提供方 id；未设置时不执行搜索 |
 | `fetchProvider` | （未设置） | 固定的抓取提供方 id；未设置时仅在恰好一个可用时自动选择 |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-web)是每个受支持字段及其 JSDoc 的穷尽式真源。

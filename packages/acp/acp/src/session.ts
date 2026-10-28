@@ -249,6 +249,9 @@ export class AcpSession {
     requestSignal?: AbortSignal,
   ): Promise<PromptResponse> {
     this.assertActive()
+    if (this.modelControl.snapshot() === undefined) {
+      throw invalidParams('尚未配置模型，请先配置 ACP 供应商和模型。')
+    }
     if (this.inflight !== undefined) throw invalidParams('a prompt is already in flight for this session')
     const completion = Promise.withResolvers<StopReason>()
     const admission = Promise.withResolvers<void>()

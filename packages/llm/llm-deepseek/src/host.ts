@@ -4,7 +4,7 @@ import type {} from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type {} from '@deepseek-ai/dsh-fs'
 import { resolveImageAttachmentAccess } from '@deepseek-ai/dsh-llm'
-import { getOrCreateAnonymousUserId, type AnonymousUserId } from '@deepseek-ai/dsh-anonymous-user-id'
+import type { AdapterRegistrationHandle } from '@deepseek-ai/dsh-llm'
 import { deepEqualJson } from '@deepseek-ai/dsh-util-values'
 import { DeepSeekAdapter } from './adapter.ts'
 import type { DeepSeekAdapterOptions, DeepSeekConnectionOptions } from './types.ts'
@@ -14,19 +14,20 @@ import type { DeepSeekAdapterOptions, DeepSeekConnectionOptions } from './types.
  * @param ctx - provider plugin lifetime with the LLM registry injected.
  * @param provider - exact route owned by this plugin.
  * @param dependencies - provider-owned discovery, credential, and configuration callbacks.
+ * @param routes - explicitly enabled provider routes; an empty list keeps the adapter dormant.
  */
 export function registerDeepSeekProvider<C extends DeepSeekConnectionOptions>(
   ctx: Context, provider: string, dependencies: Pick<DeepSeekAdapterOptions<C>,
-  'options' | 'resolveAuth' | 'providerName' | 'discoverModels' | 'connect' | 'admit'>): void {
+  'options' | 'resolveAuth' | 'providerName' | 'discoverModels' | 'connect' | 'admit'>,
+  routes: () => readonly string[] = () => [provider],
+): void {
   ctx.inject(['settings'], (child) => { child.effect(() => child.settings.configure({ auto: false }, ctx.fiber)) })
-  let userId: AnonymousUserId | undefined
   // These conditions repeat on every request of a route; log each first occurrence only.
   const degradedReplays = new Set<string>()
   const omittedRoutes = new Set<string>()
   const unacceptedRoutes = new Set<string>()
   const adapter = new DeepSeekAdapter({
     ...dependencies,
-    resolveUserId: () => userId ??= getOrCreateAnonymousUserId(),
     onReplayDegrade: ({ provider, model, reason }) => {
       const key = `${provider}/${model}\u0000${reason}`
       if (degradedReplays.has(key)) return
@@ -52,14 +53,19 @@ export function registerDeepSeekProvider<C extends DeepSeekConnectionOptions>(
     prepareExtensions: request => ctx.get('deepseekLlmApiExtensions')?.prepare(request)
       ?? Promise.resolve({ fields: {}, accept: () => Promise.resolve() }),
   })
-  const registration = ctx.llm.registerAdapter([provider], adapter)
+  let registeredRoutes = [...routes()]
+  let registration: AdapterRegistrationHandle | undefined = registeredRoutes.length === 0
+    ? undefined : ctx.llm.registerAdapter(registeredRoutes, adapter)
   let registeredPolicy = dependencies.options().retryPolicy
   ctx.on('loader/volatile-update', () => {
     let policy: typeof registeredPolicy
     try { policy = dependencies.options().retryPolicy }
     catch (error) { ctx.logger.warn(error); return }
-    if (deepEqualJson(policy, registeredPolicy)) return
-    registration.replace([provider])
+    if (deepEqualJson(policy, registeredPolicy) && deepEqualJson(routes(), registeredRoutes)) return
+    const next = [...routes()]
+    if (registration !== undefined) registration.replace(next)
+    else if (next.length > 0) registration = ctx.llm.registerAdapter(next, adapter)
+    registeredRoutes = next
     registeredPolicy = policy
   })
 }

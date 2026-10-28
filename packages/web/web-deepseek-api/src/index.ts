@@ -2,15 +2,12 @@
  * Register the DeepSeek Search and Fetch APIs in `ctx.web` as `deepseek-search-api`
  * and `deepseek-fetch-api`. Each operation is one direct API request without an
  * auxiliary model request; both providers read this section's credential and API
- * base. `web.searchProvider` and `web.fetchProvider` select them. A Session on the
- * DeepSeek account route authenticates with the account token when the account
- * service allows the endpoint; every other request uses the configured key.
+ * base. `web.searchProvider` and `web.fetchProvider` select them. Requests use the
+ * configured API key without reading the initiating Session's messages.
  * @module @deepseek-ai/dsh-web-deepseek-api
  */
 import type { Context, Volatile } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import type {} from '@deepseek-ai/dsh-agent'
-import type { Session } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-web'
 import { DeepSeekFetchApiProvider } from './fetch.ts'
 import { DEEPSEEK_DEFAULT_COUNT, DEEPSEEK_WEB_API_BASE_URL, DeepSeekSearchApiProvider } from './search.ts'
@@ -40,8 +37,6 @@ export interface Config {
   baseURL: Volatile<string>
   /** Search API results per search, from 1 through 50; a smaller request bound wins. Defaults to 10. */
   count: Volatile<number>
-  /** Send the triggering user question, bounded to 128 characters, as `ori_question`. Defaults to true. */
-  sendOriginalQuestion: Volatile<boolean>
 }
 
 export const Config = z.object({
@@ -49,20 +44,7 @@ export const Config = z.object({
   apiKeyEnv: z.string().role('credential-ref').default('DEEPSEEK_API_KEY').volatile(),
   baseURL: z.string().default(DEEPSEEK_WEB_API_BASE_URL).volatile(),
   count: z.number().step(1).min(1).max(50).default(DEEPSEEK_DEFAULT_COUNT).volatile(),
-  sendOriginalQuestion: z.boolean().default(true).volatile(),
 })
-
-/**
- * Read the text of the latest human prompt, the question that triggered the
- * current turn. Injected user-role context carries another source kind.
- * @param session - the initiating Session, when the search runs inside one.
- * @returns the prompt's joined text blocks, or undefined without a prompt.
- */
-function latestUserQuestion(session: Session | undefined): string | undefined {
-  const prompt = session?.deriveMessages().findLast(message => message.role === 'user' && message.source.kind === 'user')
-  if (prompt === undefined) return undefined
-  return prompt.content.flatMap(block => block.type === 'text' ? [block.text] : []).join('\n')
-}
 
 /**
  * Register the Search API and Fetch API providers over one live settings section.
@@ -75,9 +57,6 @@ export function apply(ctx: Context, config: Config): void {
     ...auth(),
     baseURL: config.baseURL.get(),
     count: config.count.get(),
-    ...config.sendOriginalQuestion.get() ? {
-      originalQuestion: () => latestUserQuestion(ctx.get('agents')?.currentInitiator()?.session),
-    } : {},
   })))
   ctx.web.registerFetchProvider(new DeepSeekFetchApiProvider(() => ({ ...auth(), baseURL: config.baseURL.get() })))
 }

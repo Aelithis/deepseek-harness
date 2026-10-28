@@ -26,7 +26,7 @@ const ONE_RESULT = {
 
 async function boot() {
   const ctx = new Context()
-  await ctx.plugin(WebRuntime, {})
+  await ctx.plugin(WebRuntime, { searchProvider: 'deepseek-official' })
   const live = await liveConfig(ctx, deepseekPlugin, { apiKey: 'ds-key', baseURL: 'https://search.entry.test/v1' })
   return { ctx, live }
 

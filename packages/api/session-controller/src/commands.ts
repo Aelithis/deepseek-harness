@@ -272,7 +272,7 @@ export class SessionCommandController {
     const childId = brandString<SessionId>(`session-${randomUUID()}`)
     const composition = await this.agents.composeAgent(this.agents.presetForObservation(source))
     try {
-      const { provider, model } = this.ctx.agentDefaultModel.currentSelection()
+      const configured = this.ctx.agentDefaultModel.configuredSelection()
       await this.ctx.agents.create({
         sessionId: childId,
         seed,
@@ -285,7 +285,7 @@ export class SessionCommandController {
             ? {}
             : { agentPreset: composition.agentPreset }),
         },
-        agentOptions: { provider, model },
+        agentOptions: configured ?? {},
         setup: composition.setup,
       })
     } catch (error) {
@@ -322,8 +322,8 @@ export class SessionCommandController {
     const hasImage = request.content.some(part => part.type === 'image')
     const admit = async (): Promise<SessionPromptValue> => {
       try {
+        const current = this.agents.selectionFor(agent).current
         if (hasImage) {
-          const current = this.agents.selectionFor(agent).current
           const model = await this.ctx.llm.resolveModelInfo(current.provider, current.model)
           if (model.inputModalities !== undefined && !model.inputModalities.includes('image')) {
             throw new RemoteError(

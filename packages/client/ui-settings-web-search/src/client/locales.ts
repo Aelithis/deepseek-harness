@@ -4,7 +4,7 @@ import type { SettingsFormLabels } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /** Locale keys the page renders. */
 export type WebSearchSettingsLocaleKey =
-  | 'title' | 'description' | 'useSearchApi' | 'useSearchApiHint' | 'searchGuide' | 'searchGuideUrl'
+  | 'searchEnabled' | 'title' | 'description' | 'useSearchApi' | 'useSearchApiHint' | 'searchGuide' | 'searchGuideUrl'
   | 'apiKey' | 'apiKeyHint' | 'apiKeySet' | 'apiKeyUnset'
   | 'baseUrl' | 'baseUrlHint' | 'searchApiBaseUrl' | 'searchApiBaseUrlHint' | 'maxUses' | 'maxUsesHint' | 'count' | 'countHint'
   | 'overridden' | 'reset' | 'readOnly' | 'unavailable'
@@ -13,15 +13,16 @@ export type WebSearchSettingsLocaleKey =
 /** English copy. */
 export const en: Record<WebSearchSettingsLocaleKey, string> = {
   title: 'Web search',
+  searchEnabled: 'Enable web search',
   description: 'Set up the DeepSeek search provider.',
   useSearchApi: 'Use the new Web Search API',
-  useSearchApiHint: 'Off by default: search runs through DeepSeek Messages. For the new Web Search API\'s features and pricing, see the ',
+  useSearchApiHint: '选择搜索接口。功能与计费详见',
   searchGuide: 'Search & Fetch guide',
   searchGuideUrl: 'https://api-docs.deepseek.com/guides/search',
   apiKey: 'API key',
   apiKeyHint: 'Stored outside the settings file. Leave blank to keep the current key.',
   apiKeySet: 'A key is configured.',
-  apiKeyUnset: 'No key is configured; only conversations using a DeepSeek Account model can search, through the default endpoint.',
+  apiKeyUnset: '尚未配置 API 密钥。',
   baseUrl: 'Messages API base URL',
   baseUrlHint: 'Include the API prefix, such as https://api.deepseek.com/anthropic/v1. The provider appends /messages. Leave blank to restore the default.',
   searchApiBaseUrl: 'Search / Fetch API base URL',
@@ -44,15 +45,16 @@ export const en: Record<WebSearchSettingsLocaleKey, string> = {
 /** Simplified Chinese copy. */
 export const zh: Record<WebSearchSettingsLocaleKey, string> = {
   title: '网页搜索',
+  searchEnabled: '启用网页搜索',
   description: '设置 DeepSeek 的搜索提供方。',
   useSearchApi: '启用新版 Web 搜索 API',
-  useSearchApiHint: '默认关闭，搜索通过 DeepSeek Messages 完成。新版 Web 搜索 API 功能与计费详见',
+  useSearchApiHint: '选择搜索接口。功能与计费详见',
   searchGuide: '网页搜索与抓取指南',
   searchGuideUrl: 'https://api-docs.deepseek.com/zh-cn/guides/search',
   apiKey: 'API Key',
   apiKeyHint: '不写入设置文件。留空表示保持当前密钥。',
   apiKeySet: '已配置密钥。',
-  apiKeyUnset: '未配置密钥；仅使用 DeepSeek 账号模型的对话可以通过默认接口地址搜索。',
+  apiKeyUnset: '尚未配置 API 密钥。',
   baseUrl: 'Messages API 基础地址',
   baseUrlHint: '填写含 API 前缀的地址，例如 https://api.deepseek.com/anthropic/v1；程序追加 /messages，留空恢复默认。',
   searchApiBaseUrl: 'Search / Fetch API 基础地址',

@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Provide the shared DeepSeek Messages transport, request configuration, and model capabilities. Compose [API-key](../llm-deepseek-api-key/README.md) or [account](../llm-deepseek-account/README.md) plugins for authentication, model discovery, and provider registration. Valid settings changes affect subsequent calls while in-flight calls retain their configuration. This package can run beside the [pi-ai adapter](../llm-pi-ai/README.md).
+Provide the shared DeepSeek Messages transport, request configuration, and model capabilities. Compose the [API-key](../llm-deepseek-api-key/README.md) plugin for authentication, model discovery, and provider registration. Valid settings changes affect subsequent calls while in-flight calls retain their configuration. This package can run beside the [pi-ai adapter](../llm-pi-ai/README.md).
 
 `resolveAuth(connection)` returns the provider-owned authentication headers and an optional failure callback bound to that request’s credential. Messages and Files send those headers without selecting a credential mode. Upload reuse is isolated by endpoint and a hash of the authentication headers; raw credentials are not persisted.
 
@@ -84,11 +84,9 @@ The official root is `https://api.deepseek.com/anthropic`. An explicit `baseURL`
 
 Messages sends text, thinking, tool calls, and tool results as content blocks, reasoning effort as `output_config.effort`, and images as Files references or inline base64. Models declaring `systemPromptUpdate: in-history` retain the initial top-level system and send new system snapshots after their corresponding user/tool-result turn; undeclared models use the latest snapshot as the top-level system. Replay metadata preserves the model and thinking signatures. Invalid replay metadata emits a warning and omits signatures while retaining text and tool history. Model entries may declare `toolUpdate: addition-only` or `in-history`; the default `deepseek-flash` entry declares `addition-only`. Projected developer tool updates become system-role `tool_addition` and `tool_removal` blocks referencing declared names, and deferred declarations carry `defer_loading`. Requests containing those blocks send the `mid-conversation-tool-changes-2026-07-01` beta header. Messages omits empty assistant text blocks and skips assistant messages left without content, including saved history from other protocols. The stored Session content remains intact.
 
-### Account credentials
+### API-key credentials
 
-`deepseek-official` resolves only its configured API-key reference. `deepseek-account` resolves only the stored grant from the [account provider](../../credentials/deepseek-account-platform/README.md), whose allowed `inferenceOrigin` defaults to `https://api.deepseek.com`. Neither route falls back to the other. Signing out removes the account grant and preserves API keys.
-
-Messages and Files requests send account tokens as `x-dsh-auth-token` without a Bearer prefix; API keys use `x-api-key`. Neither credential mode follows redirects. The account provider owns HTTP 401 classification and credential invalidation; the transport passes failures to its callback.
+`deepseek-official` resolves its configured API-key reference. Messages and Files requests send the key as `x-api-key` and reject redirects.
 
 ### Streaming with thinking and images
 
@@ -108,7 +106,7 @@ Connection options are captured from volatile Config references once per operati
 
 ### Provider-specific request fields
 
-When `ctx.deepseekLlmApiExtensions` is present, the adapter prepares its registered top-level fields from the exact serialized base request before `fetch`. The registry omits a field whose preparation fails, and field collisions fail before HTTP; after a 2xx response, the adapter accepts every captured contribution before consuming SSE. Transport and non-2xx failures do not accept them. When the base request with its extension fields fails to serialize, the adapter sends the base request alone, skips acceptance so contributors resend their state later, and logs a warning naming the omitted fields. Serialization, acceptance, and replay-degradation warnings are logged once per route. Shipped compositions use this for the default-on incremental `dsh_session_log` field and the default-on active `dsh_plugin_packages` inventory; both stay outside model input.
+When `ctx.deepseekLlmApiExtensions` is present, the adapter prepares its registered top-level fields from the exact serialized base request before `fetch`. The registry omits a field whose preparation fails, and field collisions fail before HTTP; after a 2xx response, the adapter accepts every captured contribution before consuming SSE. Transport and non-2xx failures do not accept them. When the base request with its extension fields fails to serialize, the adapter sends the base request alone, skips acceptance so contributors resend their state later, and logs a warning naming the omitted fields. Serialization, acceptance, and replay-degradation warnings are logged once per route. The shipped composition registers no session-log or plugin-inventory upload fields.
 
 ### Failures and recovery
 
@@ -118,7 +116,7 @@ Successful Files responses must contain valid JSON. JSON decoding failures from 
 
 Non-2xx responses fail with stable codes: `AUTH` (401/403), `QUOTA`, `RATE_LIMIT`, `CONTEXT_WINDOW_EXCEEDED`, `INVALID_REQUEST`, `SERVER`, and `HTTP_<status>` otherwise; pre-response transport failures throw `TRANSPORT`, caller aborts throw `ABORTED`, and stream-idle expiry throws `TIMEOUT`. A request-extension field collision, or a rejected preparation from a directly supplied `prepareExtensions`, fails with `REQUEST_EXTENSION` and appends the cause chain to the message; a post-2xx acceptance failure is logged and the response still streams. A normalized-image rejection names every plausible attachment and its durable position when the provider does not identify a file id. Stale-file rejection removes every named mapping (or every mapping used by the attempt) in one upload-index update and permits one replacement model request. Protocol violations throw `STREAM_CLOSED` or `MALFORMED_RESPONSE`, and a terminal `stop` with no content blocks becomes `EMPTY_RESPONSE`, which the default retry policy retries. A request on the official route without an API key fails with `MISSING_CREDENTIAL`, and a malformed credential fails with `INVALID_CREDENTIAL` naming the reference to fix — never any part of the key.
 
-Provider plugins own catalog availability. While its API key resolves, the API-key route serves its configured `models`, or the official model listing while `models` is the built-in catalog on the official endpoint; the account route serves its account listing while signed in (see the [API-key](../llm-deepseek-api-key/README.md) and [account](../llm-deepseek-account/README.md) providers). The transport supplies the bundled catalog, the catalog-entry field schemas, and capability resolution, plus the listing machinery both routes share: `requestModelListing`, the credential-scoped `ModelListingCache`, and `resolveListedCatalog` with its client-version gate and `refuseListedModel`. A provider may also supply `connect(signal)`, which resolves the connection for exact-model lookups and prepared calls after provider-owned work such as a catalog load, and `admit(connection, model)`, which refuses a model before network I/O.
+Provider plugins own catalog availability. While its API key resolves, the API-key route serves its configured `models`, or the official model listing while `models` is the built-in catalog on the official endpoint (see the [API-key](../llm-deepseek-api-key/README.md) provider). The transport supplies the bundled catalog, the catalog-entry field schemas, and capability resolution, plus the listing machinery: `requestModelListing`, the credential-scoped `ModelListingCache`, and `resolveListedCatalog` with its client-version gate and `refuseListedModel`. A provider may also supply `connect(signal)`, which resolves the connection for exact-model lookups and prepared calls after provider-owned work such as a catalog load, and `admit(connection, model)`, which refuses a model before network I/O.
 
 -----
 
@@ -140,7 +138,7 @@ The plugin is built on one explicit resolve step and one registration fact. `res
 
 ### Wire flow
 
-One `stream()` call normally makes one model request: resolve deterministic request images, prefer Files ids, prepare any registered top-level request extensions, fetch from the resolved `baseURL`, accept extension transactions after HTTP 2xx, and translate the SSE stream into the harness protocol. File-resolution failure makes the first request inline; a provider stale-file response permits one replacement attempt, also inline if replacement resolution fails. Every model and Files call carries shared attribution. Model requests also carry the stable anonymous user id outside model input, plus a session id when present. Reasoning history is serialized back when required, and cache accounting maps DeepSeek's cache-hit metrics into harness usage.
+One `stream()` call normally makes one model request: resolve deterministic request images, prefer Files ids, prepare any registered top-level request extensions, fetch from the resolved `baseURL`, accept extension transactions after HTTP 2xx, and translate the SSE stream into the harness protocol. File-resolution failure makes the first request inline; a provider stale-file response permits one replacement attempt, also inline if replacement resolution fails. Every model and Files call carries shared attribution. Model requests carry no installation or local Session identifiers. Reasoning history is serialized back when required, and cache accounting maps DeepSeek's cache-hit metrics into harness usage.
 
 </details>
 
@@ -156,8 +154,6 @@ Read these pages when the package-level contract is not enough. They move from t
 - [LLM streaming subsystem](../../../docs/subsystems/llm-streaming.md) — the `StreamChunk` protocol and adapter contract.
 - [llm-retry](../llm-retry/README.md) — the retry executor that applies this adapter's `retryPolicy`.
 - [DeepSeek request extensions](../deepseek-llm-api-extensions/README.md) — lifecycle and acceptance semantics for provider-specific top-level fields.
-- [Session-log upload](../../session/session-log-deepseek/README.md) — the default-on incremental `dsh_session_log` contribution.
-- [Plugin package inventory](../plugin-package-inventory-deepseek/README.md) — the default-on `dsh_plugin_packages` contribution.
 - [Twin LLM adapters](../../../.agents/notes/implemented/architecture/2026-06-13-twin-llm-adapters.md) — why DeepSeek ships two structurally different adapters.
 - [Mandatory app attribution headers](../../../docs/subsystems/llm-streaming.md) — the identity every provider request carries.
 

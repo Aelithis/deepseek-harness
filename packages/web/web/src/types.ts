@@ -102,7 +102,7 @@ export type WebFetchBody =
 export interface WebSearchProvider {
   readonly id: string
   /** Cheap local usability check; must not make network calls. */
-  available(): boolean
+  available(): boolean | Promise<boolean>
   /** Run one search; honor `signal` for cancellation. */
   search(request: WebSearchRequest, signal?: AbortSignal): Promise<WebSearchResult>
 }
@@ -114,7 +114,7 @@ export interface WebSearchProvider {
 export interface WebFetchProvider {
   readonly id: string
   /** Cheap local usability check; must not make network calls. */
-  available(): boolean
+  available(): boolean | Promise<boolean>
   /** Retrieve one URL; honor `signal` for cancellation. */
   fetch(request: WebFetchRequest, signal?: AbortSignal): Promise<WebFetchResult>
 }

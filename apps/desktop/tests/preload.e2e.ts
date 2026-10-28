@@ -49,7 +49,7 @@ function browserEnvironment() {
 }
 
 describe.skipIf(!existsSync(preload('preload-app')))('built sandboxed Desktop preloads', () => {
-  it.each(['preload-app', 'preload-welcome'])('%s loads without filesystem module access', async (name) => {
+  it.each(['preload-app'])('%s loads without filesystem module access', async (name) => {
     const exposed = new Map<string, Record<string, unknown>>()
     const invoke = vi.fn<(...args: unknown[]) => Promise<unknown>>(() => Promise.resolve({ languages: ['en-US'], preference: 'zh' }))
     const send = vi.fn()
@@ -82,11 +82,6 @@ describe.skipIf(!existsSync(preload('preload-app')))('built sandboxed Desktop pr
       expect(invoke).toHaveBeenCalledWith('dsh-desktop:locale-bootstrap')
       bridge.onChange('zh')
       expect(send).toHaveBeenCalledWith('dsh-desktop:locale-changed', 'zh')
-    } else {
-      expect(exposed.has('dshWelcome')).toBe(true)
-      const bridge = exposed.get('dshWelcome') as { takeNotice(): Promise<unknown> }
-      void bridge.takeNotice()
-      expect(invoke).toHaveBeenCalledWith('dsh-welcome:take-notice')
     }
   })
 })

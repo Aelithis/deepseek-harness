@@ -44,8 +44,7 @@ describe('web-deepseek-api API-key resolution', () => {
       await ctx.plugin(LocalCredentialProvider, { path: join(dir, '.credentials.yaml'), watch: false })
       await mount(ctx, {}, {})
       const missing = ctx.web.search({ query: 'missing' })
-      await expect(missing).rejects.toMatchObject({ code: 'WEB_PROVIDER_CREDENTIAL_MISSING' })
-      await expect(missing).rejects.toThrow(/"apiKey" in the web-deepseek-api config/)
+      await expect(missing).rejects.toMatchObject({ code: 'WEB_PROVIDER_CONFIGURED_UNAVAILABLE' })
       const ref = credentialRef('DEEPSEEK_API_KEY')
       await ctx.credentials.set(ref, 'stored-key')
       await ctx.web.search({ query: 'stored' })
@@ -77,7 +76,7 @@ describe('web-deepseek-api API-key resolution', () => {
     const ctx = new Context()
     try {
       await mount(ctx, {}, { DEEPSEEK_API_KEY: '' })
-      await expect(ctx.web.search({ query: 'q' })).rejects.toMatchObject({ code: 'WEB_PROVIDER_CREDENTIAL_MISSING' })
+      await expect(ctx.web.search({ query: 'q' })).rejects.toMatchObject({ code: 'WEB_PROVIDER_CONFIGURED_UNAVAILABLE' })
       expect(authorization()).toEqual([])
     } finally { await ctx.fiber.dispose() }
   })
@@ -88,7 +87,7 @@ describe('web-deepseek-api API-key resolution', () => {
     try {
       ctx.provide('credentials', { resolve: async () => ({ value: '' }) } as never)
       await mount(ctx, {}, {})
-      await expect(ctx.web.search({ query: 'q' })).rejects.toMatchObject({ code: 'WEB_PROVIDER_CREDENTIAL_MISSING' })
+      await expect(ctx.web.search({ query: 'q' })).rejects.toMatchObject({ code: 'WEB_PROVIDER_CONFIGURED_UNAVAILABLE' })
       expect(authorization()).toEqual([])
     } finally { await ctx.fiber.dispose() }
   })

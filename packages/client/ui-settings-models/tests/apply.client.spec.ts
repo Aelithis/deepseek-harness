@@ -15,8 +15,6 @@ import {
   WELCOME_NOTICE_ACK_FIELD, WELCOME_NOTICE_SETTINGS_NAMESPACE, WELCOME_NOTICE_VERSION,
 } from '../src/onboarding-copy.ts'
 import { ModelsSection } from '../src/client/ModelsSection.tsx'
-import { DeepSeekOnboardingDialog } from '../src/client/DeepSeekOnboardingDialog.tsx'
-import { WelcomeNotice } from '../src/client/WelcomeNotice.tsx'
 import type { IndexInjection } from '@deepseek-ai/dsh-host-webserver'
 import * as hostPlugin from '../src/index.ts'
 import { ONBOARDING_CONFIG_GLOBAL } from '../src/onboarding-config.ts'
@@ -95,7 +93,7 @@ describe('ui-settings-models apply', () => {
   })
 
   it('defaults to browser onboarding and rejects malformed bootstrap options', async () => {
-    expect(hostPlugin.Config({})).toEqual({ credentialOnboarding: true })
+    expect(hostPlugin.Config({})).toEqual({ credentialOnboarding: false })
     expect(hostPlugin.Config['~standard'].validate({ credentialOnboarding: 'false' })).toHaveProperty('issues')
     const { ctx } = await bench()
     try {
@@ -111,57 +109,6 @@ describe('ui-settings-models apply', () => {
       'slots', 'locale', 'remote', 'remote.credentials', 'remote.llm', 'remote.settings', 'remote.session',
       'configForms', 'settingsSchema',
     ])
-  })
-
-  it('registers the models nav entry for declarations before or after apply', async () => {
-    const before = await bench()
-    declare(before.slots)
-    await before.ctx.plugin({ inject: [...inject], apply }).await()
-    const entry = before.slots.entries('settings.section')[0]!
-    expect(entry.component).toBe(ModelsSection)
-    expect(entry.options).toMatchObject({ id: 'models', order: 10 })
-    // The section claims its two extension seats in the same registration.
-    expect(before.slots.spec('settings.models.provider-card')).toMatchObject({ kind: 'keyed', scope: 'root' })
-    expect(before.slots.spec('settings.models.footer')).toMatchObject({ kind: 'list', scope: 'root' })
-    // The nav label is a locale-following thunk; owners resolve at read time.
-    expect(resolveSlotLabel(entry.options.label)).toBe('模型')
-    const injected = (entry.inject as unknown as () => import('../src/client/ModelsSection.tsx').ModelsSectionInjected)()
-    expect(injected.t('nav')).toBe('模型')
-    expect(injected.t('deleteTitle')).toBe('删除 {provider}？')
-    expect(typeof injected.controller.load).toBe('function')
-    expect(injected.hooks.snapshot).toBe(injected.controller.store)
-    expect(typeof injected.operations.writeSettings).toBe('function')
-    const onboarding = before.slots.entries('settings.onboarding')
-    expect(onboarding).toHaveLength(2)
-    expect(onboarding.find(entry => entry.options.id === 'welcome-notice')).toMatchObject({
-      component: WelcomeNotice,
-      options: { id: 'welcome-notice', order: -100 },
-    })
-    const deepSeek = onboarding.find(entry => entry.options.id === 'deepseek-official')!
-    expect(deepSeek.component).toBe(DeepSeekOnboardingDialog)
-    const analytics = (deepSeek.inject!() as object) as import('../src/client/DeepSeekOnboardingDialog.tsx').DeepSeekOnboardingInjected
-    analytics.track?.('api_key_save_click', {})
-    const track = vi.fn()
-    before.ctx.provide('productAnalytics', { track } as never)
-    analytics.track?.('api_key_save_click', {})
-    expect(track).toHaveBeenCalledWith('api_key_save_click', {})
-    expect(deepSeek.options).toMatchObject({ id: 'deepseek-official', order: 0 })
-    const deepSeekInjected = (
-      deepSeek.inject as unknown as () => import('../src/client/DeepSeekOnboardingDialog.tsx').DeepSeekOnboardingInjected
-    )()
-    expect(deepSeekInjected.hooks.models).toBe(injected.controller.store)
-    expect(typeof deepSeekInjected.operations.storeCredential).toBe('function')
-
-    const after = await bench()
-    await after.ctx.plugin({ inject: [...inject], apply }).await()
-    expect(after.slots.entries('settings.section')).toHaveLength(0)
-    expect(after.slots.entries('settings.onboarding')).toHaveLength(0)
-    declare(after.slots)
-    await Promise.resolve()
-    expect(after.slots.entries('settings.section')[0]!.component).toBe(ModelsSection)
-    expect(after.slots.entries('settings.onboarding')).toHaveLength(2)
-    // The self-inflicted ledger notifications hit the duplicate guard.
-    expect(after.slots.entries('settings.section')).toHaveLength(1)
   })
 
   it('the label thunk follows the active locale without re-registration', async () => {

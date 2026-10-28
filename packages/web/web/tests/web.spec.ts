@@ -34,7 +34,7 @@ function fetchResult(marker: string): WebFetchResult {
 }
 
 /** Mount a WebRuntime on a fresh root context with the given config. */
-async function mountWeb(config: { searchProvider?: string; fetchProvider?: string } = {}): Promise<{ ctx: Context; web: WebRuntime }> {
+async function mountWeb(config: { searchProvider?: string; fetchProvider?: string } = { searchProvider: 'exa' }): Promise<{ ctx: Context; web: WebRuntime }> {
   const ctx = new Context()
   await ctx.plugin(WebRuntime, config)
   return { ctx, web: ctx.web }
@@ -48,7 +48,7 @@ describe('WebRuntime registration', () => {
     await expect(web.search({ query: 'q' })).resolves.toMatchObject({ content: 'exa' })
 
     dispose()
-    await expect(web.search({ query: 'q' })).rejects.toThrow(expect.objectContaining({ code: 'WEB_PROVIDER_UNAVAILABLE' }))
+    await expect(web.search({ query: 'q' })).rejects.toThrow(expect.objectContaining({ code: 'WEB_PROVIDER_CONFIGURED_MISSING' }))
   })
 
   it('throws WEB_DUPLICATE_PROVIDER on a duplicate search id', async () => {
@@ -71,20 +71,20 @@ describe('WebRuntime registration', () => {
     }, { inject: ['web'] }))
     await expect(web.search({ query: 'q' })).resolves.toMatchObject({ content: 'exa' })
     await fiber.dispose()
-    await expect(web.search({ query: 'q' })).rejects.toThrow(expect.objectContaining({ code: 'WEB_PROVIDER_UNAVAILABLE' }))
+    await expect(web.search({ query: 'q' })).rejects.toThrow(expect.objectContaining({ code: 'WEB_PROVIDER_CONFIGURED_MISSING' }))
   })
 })
 
 describe('WebRuntime execution resolution', () => {
-  it('throws WEB_PROVIDER_UNAVAILABLE when nothing is registered', async () => {
+  it('reports the missing explicitly configured provider when none is registered', async () => {
     const { web } = await mountWeb()
-    await expect(web.search({ query: 'q' })).rejects.toThrow(expect.objectContaining({ code: 'WEB_PROVIDER_UNAVAILABLE' }))
+    await expect(web.search({ query: 'q' })).rejects.toThrow(expect.objectContaining({ code: 'WEB_PROVIDER_CONFIGURED_MISSING' }))
   })
 
-  it('throws WEB_PROVIDER_UNAVAILABLE when providers exist but none are usable', async () => {
+  it('reports an unavailable explicitly configured provider', async () => {
     const { web } = await mountWeb()
     web.registerSearchProvider(makeSearchProvider('exa', unavailable, () => Promise.resolve(searchResult('exa'))))
-    await expect(web.search({ query: 'q' })).rejects.toThrow(expect.objectContaining({ code: 'WEB_PROVIDER_UNAVAILABLE' }))
+    await expect(web.search({ query: 'q' })).rejects.toThrow(expect.objectContaining({ code: 'WEB_PROVIDER_CONFIGURED_UNAVAILABLE' }))
   })
 
   it('throws WEB_PROVIDER_CONFIGURED_MISSING for an unregistered configured id', async () => {
@@ -99,37 +99,11 @@ describe('WebRuntime execution resolution', () => {
     await expect(web.search({ query: 'q' })).rejects.toThrow(expect.objectContaining({ code: 'WEB_PROVIDER_CONFIGURED_UNAVAILABLE' }))
   })
 
-  it('throws WEB_PROVIDER_AMBIGUOUS rather than picking by order', async () => {
-    const { web } = await mountWeb()
-    web.registerSearchProvider(makeSearchProvider('exa', available, () => Promise.resolve(searchResult('exa'))))
-    web.registerSearchProvider(makeSearchProvider('perplexity', available, () => Promise.resolve(searchResult('perplexity'))))
-    await expect(web.search({ query: 'q' })).rejects.toThrow(expect.objectContaining({ code: 'WEB_PROVIDER_AMBIGUOUS' }))
-  })
-
   it('runs the configured provider even when another usable provider is registered', async () => {
     const { web } = await mountWeb({ searchProvider: 'perplexity' })
     web.registerSearchProvider(makeSearchProvider('exa', available, () => Promise.resolve(searchResult('exa'))))
     web.registerSearchProvider(makeSearchProvider('perplexity', available, () => Promise.resolve(searchResult('perplexity'))))
     await expect(web.search({ query: 'q' })).resolves.toMatchObject({ content: 'perplexity' })
-  })
-
-  it('ignores unusable providers when auto-selecting', async () => {
-    const { web } = await mountWeb()
-    web.registerSearchProvider(makeSearchProvider('exa', available, () => Promise.resolve(searchResult('exa'))))
-    web.registerSearchProvider(makeSearchProvider('perplexity', unavailable, () => Promise.resolve(searchResult('perplexity'))))
-    await expect(web.search({ query: 'q' })).resolves.toMatchObject({ content: 'exa' })
-  })
-
-  it('does not let registration order change auto-selection', async () => {
-    const a = await mountWeb()
-    a.web.registerSearchProvider(makeSearchProvider('exa', unavailable, () => Promise.resolve(searchResult('exa'))))
-    a.web.registerSearchProvider(makeSearchProvider('perplexity', available, () => Promise.resolve(searchResult('perplexity'))))
-    await expect(a.web.search({ query: 'q' })).resolves.toMatchObject({ content: 'perplexity' })
-
-    const b = await mountWeb()
-    b.web.registerSearchProvider(makeSearchProvider('perplexity', available, () => Promise.resolve(searchResult('perplexity'))))
-    b.web.registerSearchProvider(makeSearchProvider('exa', unavailable, () => Promise.resolve(searchResult('exa'))))
-    await expect(b.web.search({ query: 'q' })).resolves.toMatchObject({ content: 'perplexity' })
   })
 
   it('runs the selected provider and returns its result', async () => {
@@ -232,5 +206,17 @@ describe('live provider selection', () => {
       await expect(ctx.web.search({ query: 'q' })).resolves.toMatchObject({ content: 'second' })
       await expect(ctx.web.fetch({ url: 'https://example.com' })).resolves.toMatchObject({ body: { content: 'second' } })
     } finally { await ctx.fiber.dispose() }
+  })
+})
+
+describe('explicit search setup', () => {
+  it('does not select the sole registered provider without configuration', async () => {
+    const { ctx, web } = await mountWeb({})
+    try {
+      web.registerSearchProvider(makeSearchProvider('exa', true, () => Promise.resolve(searchResult('exa'))))
+      await expect(web.search({ query: 'q' })).rejects.toMatchObject({ code: 'WEB_PROVIDER_UNAVAILABLE' })
+    } finally {
+      await ctx.fiber.dispose()
+    }
   })
 })

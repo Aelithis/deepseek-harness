@@ -7,6 +7,8 @@ kind: "package-reference"
 
 [English](README.md) | 中文
 
+网页搜索初始未配置。显式启用后保存所选接口与凭据；关闭搜索会清除端点覆盖，并恢复 HTTP 网页读取。
+
 ## 概述
 
 在侧栏打开**插件**，在官方分组里选择**网页搜索**，即可在 DeepSeek Messages 搜索与 DeepSeek Search 与 Fetch API 之间切换，并设置所选 API 的密钥、接口地址和每次搜索的上限。页面暂存输入、只在保存时写入；密钥通过凭据域写入而不进设置文件，其明文从不出现在任何响应里。页面只在 Host 服务 `web-search-deepseek` 命名空间期间存在。

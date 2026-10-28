@@ -57,7 +57,6 @@ Web bundle 包含本插件，桌面端使用该 bundle 时也会加载。本包�
 
 - [模型选择](../ui-model-selection/README.zh.md) — 名称显示位置与选择行为。
 - [DeepSeek 传输](../../llm/llm-deepseek/README.zh.md) — 内置模型目录。
-- [DeepSeek 账号](../../llm/llm-deepseek-account/README.zh.md) — 账号提供的模型目录。
 
 -----
 

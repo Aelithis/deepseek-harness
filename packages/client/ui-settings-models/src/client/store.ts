@@ -70,9 +70,7 @@ export function joinProviderDirectory(
       active: true,
     })
   }
-  return rows.toSorted((left, right) =>
-    (left.provider === 'deepseek-account' ? 0 : left.provider === 'deepseek-official' ? 1 : 2)
-      - (right.provider === 'deepseek-account' ? 0 : right.provider === 'deepseek-official' ? 1 : 2))
+  return rows
 }
 
 /** One provider row the page renders. */
@@ -251,27 +249,24 @@ export class ModelsSettingsStore {
     const rows: ProviderRow[] = providers.map((entry) => {
       const namespace = namespaces.get(entry.settingsNs)
       const configured = namespace !== undefined
-        && (entry.settingsPath.length === 0 || this.schema.getPath(namespace.value, entry.settingsPath) !== undefined)
+        && (entry.settingsPath.length === 0
+          ? entry.provider !== 'deepseek-official' || this.schema.getPath(namespace.value, ['enabled']) === true
+          : this.schema.getPath(namespace.value, entry.settingsPath) !== undefined)
       const removable = namespace !== undefined
-        && entry.settingsPath.length > 0
-        && this.schema.hasPath(namespace.user, entry.settingsPath)
-        && !this.schema.hasPath(namespace.base, entry.settingsPath)
+        && (entry.provider === 'deepseek-official' && entry.settingsPath.length === 0
+          ? configured
+          : entry.settingsPath.length > 0
+            && this.schema.hasPath(namespace.user, entry.settingsPath)
+            && !this.schema.hasPath(namespace.base, entry.settingsPath))
       return {
         entry,
         configured,
         removable,
-        apiKeyEnv: entry.provider === 'deepseek-account' ? undefined : apiKeyEnvOf(namespace, entry.settingsPath, this.schema),
+        apiKeyEnv: apiKeyEnvOf(namespace, entry.settingsPath, this.schema),
         credential: undefined,
       }
     })
-    if (rows.some(row => row.entry.provider === 'deepseek-account')) {
-      const catalog = await this.ctx.remote.session.modelCatalog()
-      for (const row of rows) {
-        if (row.entry.provider === 'deepseek-account') row.accountAvailable = catalog.ok
-          && catalog.value.groups.some(group => group.id === 'deepseek-account' && group.models.length > 0)
-      }
-    }
-    const refs = [...new Set(rows.filter(row => row.entry.provider !== 'deepseek-account').flatMap(row =>
+    const refs = [...new Set(rows.flatMap(row =>
       row.apiKeyEnv === undefined ? [deriveKeyRef(row.entry.provider), ...row.entry.nativeAuth?.env ?? []] : [row.apiKeyEnv]))]
     const credentials: Record<string, CredentialInfo> = {}
     let credentialError: string | null = null
@@ -290,8 +285,7 @@ export class ModelsSettingsStore {
       s.error = null
       s.credentialError = credentialError
       s.writable = writable
-      s.rows = rows.filter(row => row.entry.provider !== 'deepseek-account' || row.accountAvailable === true).map((row) => {
-        if (row.entry.provider === 'deepseek-account') return row
+      s.rows = rows.map((row) => {
         const named = row.apiKeyEnv === undefined ? undefined : credentials[row.apiKeyEnv]
         const derived = row.apiKeyEnv !== undefined ? undefined : credentials[deriveKeyRef(row.entry.provider)]
         return {
@@ -340,7 +334,6 @@ export class ModelsSettingsStore {
  */
 export function providerUsable(row: ProviderRow): boolean {
   if (!row.entry.active) return false
-  if (row.entry.provider === 'deepseek-account') return row.accountAvailable === true
   if (row.apiKeyEnv === undefined) return true
   return row.credential?.configured === true
 }

@@ -5,12 +5,12 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type {} from '@deepseek-ai/dsh-deepseek-account'
+import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import type {} from '@deepseek-ai/dsh-experimental-translator/types'
 import { pluginRecordOf } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session/types'
 import { chromium, type Browser } from 'playwright'
-import { expect, it, onTestFailed, onTestFinished, vi } from 'vitest'
+import { expect, it, onTestFailed, onTestFinished } from 'vitest'
 import {
   acknowledgeReloadConnectionLoss, assertFixtureInventory, captureStableAria, compareOrRefreshGolden, fixtureUserPrompts,
   launchWebScaffold, readPersistedEvents, watchConsole, webSnapshotMode, type WebScaffold,
@@ -41,7 +41,6 @@ function isTranslationRecord(event: SessionEvent): boolean {
 interface PaidCall {
   path: string
   body: Record<string, unknown>
-  accountAuth: boolean
   officialAuth: boolean
   audit: SessionEvent | undefined
 }
@@ -81,8 +80,8 @@ function reply(response: ServerResponse, text: string): void {
   response.end()
 }
 
-it.skipIf(MODE === 'record')('reuses saved native Account Flash translations across reopen and reload, and cancels uncached requests without changing the main conversation', async () => {
-  const resources: { scaffold?: WebScaffold; browser?: Browser; restoreAuth?: () => void; sessionId?: SessionId } = {}
+it.skipIf(MODE === 'record')('reuses saved native API Flash translations across reopen and reload, and cancels uncached requests without changing the main conversation', async () => {
+  const resources: { scaffold?: WebScaffold; browser?: Browser; sessionId?: SessionId } = {}
   const root = await mkdtemp(join(tmpdir(), 'dsh-cot-paid-browser-'))
   const calls: PaidCall[] = [], fixtureErrors: unknown[] = [], pendingRequests: Promise<void>[] = []
   const heldResponses = new Set<ServerResponse>(), receivedHeld = Promise.withResolvers<HeldCall | undefined>()
@@ -96,8 +95,7 @@ it.skipIf(MODE === 'record')('reuses saved native Account Flash translations acr
     const body = await messageBody(request)
     const session = resources.scaffold.ctx.sessions.get(auditSessionId)
     if (session === undefined) throw new Error('Paid I/O has no existing audit Session')
-    calls.push({ path, body, accountAuth: request.headers['x-dsh-auth-token'] !== undefined,
-      officialAuth: request.headers['x-api-key'] !== undefined, audit: session.snapshotEvents().at(-1) })
+    calls.push({ path, body, officialAuth: request.headers['x-api-key'] !== undefined, audit: session.snapshotEvents().at(-1) })
     if (!holdNext) { reply(response, typeof body.system === 'string' && body.system.includes('to ja.') ? JAPANESE_TRANSLATION : TRANSLATED); return }
     holdNext = false
     const closed = Promise.withResolvers<undefined>()
@@ -116,7 +114,6 @@ it.skipIf(MODE === 'record')('reuses saved native Account Flash translations acr
     for (const response of heldResponses) response.destroy()
     await resources.browser?.close().catch((error: unknown) => failures.push(error))
     await resources.scaffold?.close().catch((error: unknown) => failures.push(error))
-    resources.restoreAuth?.()
     const closed = new Promise<void>((resolve, reject) => server.close((error) => { if (error) reject(error); else resolve() }))
     server.closeAllConnections()
     await closed.catch((error: unknown) => failures.push(error))
@@ -132,23 +129,16 @@ it.skipIf(MODE === 'record')('reuses saved native Account Flash translations acr
   const origin = `http://127.0.0.1:${address.port}`
   const overlay = join(root, 'paid-translation.patch.yml')
   await writeFile(overlay, JSON.stringify([
-    { id: 'llm-deepseek-account', config: { baseURL: `${origin}/anthropic`, reasoningEffort: 'high' } },
+    { id: 'agent-default-model', config: { provider: 'deepseek-official', model: 'deepseek-v4-flash' } },
+    { id: 'llm-deepseek', config: { baseURL: `${origin}/anthropic`, apiKeyEnv: 'PAID_TRANSLATION_FIXTURE_KEY', models: [{ id: 'deepseek-flash', name: 'Flash' }], reasoningEffort: 'high' } },
     { id: 'translator', config: { bingEndpoint: `${origin}/unexpected-free`, googleEndpoint: `${origin}/unexpected-free`,
       deepseekTimeoutMs: 120_000 } },
   ]))
-  const scaffold = await launchWebScaffold({ profile: { packages: [{ dir: BUNDLE }] }, extraOverlayPath: overlay,
+  const scaffold = await launchWebScaffold({
+    deepSeekMissingCredential: true, profile: { packages: [{ dir: BUNDLE }] }, extraOverlayPath: overlay,
     replayFixture: FIXTURE, compareReplaySession: false })
   resources.scaffold = scaffold
-  const account = scaffold.ctx.get('deepseekAccount')
-  if (account === undefined) throw new Error('Shipped native Account service is absent')
-  // Only credential acquisition is nondeterministic; the Loader-owned native route and wire remain real.
-  const auth = vi.spyOn(account, 'resolveToken').mockImplementation(async (url: string) =>
-    new URL(url).origin === origin ? 'paid-browser-fixture-token' : undefined)
-  resources.restoreAuth = () => { auth.mockRestore() }
-  scaffold.ctx.emit('llm/adapters-updated')
-  const owner = [...scaffold.ctx.loader.entries()].find(entry => entry.options.id === 'llm-deepseek-account')
-  expect(owner?.options.name).toBe('@deepseek-ai/dsh-llm-deepseek-account')
-  expect(await scaffold.ctx.llm.listModels('deepseek-account')).toContainEqual(expect.objectContaining({ id: 'deepseek-flash' }))
+  await scaffold.ctx.credentials.set(credentialRef('PAID_TRANSLATION_FIXTURE_KEY'), 'paid-browser-fixture-token')
   const browser = await chromium.launch(); resources.browser = browser
   const context = await browser.newContext({ viewport: { width: 1680, height: 1000 }, locale: ZH_BROWSER_LOCALE, timezoneId: 'Asia/Shanghai' })
   const page = await context.newPage(), settings = await context.newPage()
@@ -172,6 +162,7 @@ it.skipIf(MODE === 'record')('reuses saved native Account Flash translations acr
   expect(header?.config.provider).toBe('deepseek-official')
   const reasoning = page.locator('[data-variant="think"]').first()
   await reasoning.waitFor({ state: 'attached' }); await expandOwningTurnProcess(page, reasoning)
+  scaffold.releaseReplay()
 
   await settings.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
   await settings.getByRole('button', { name: '插件', exact: true }).click()
@@ -181,13 +172,14 @@ it.skipIf(MODE === 'record')('reuses saved native Account Flash translations acr
   expect(await toggle.getAttribute('aria-checked')).toBe('false')
   await toggle.click()
   await expect.poll(() => toggle.getAttribute('aria-checked'), { timeout: PLUGIN_TOGGLE_SETTLE_MS }).toBe('true')
+  await scaffold.ctx.settings.update('llm-deepseek', { enabled: true })
+  expect(await scaffold.ctx.translator.availableProviders()).toContain('deepseek-official')
   await card.getByRole('button').first().click()
   const provider = panel.getByLabel('翻译服务', { exact: true })
   await provider.waitFor(); expect(await provider.inputValue()).toBe('bing')
-  await provider.getByRole('option', { name: 'DeepSeek Flash · 账号（付费）', exact: true }).waitFor({ state: 'attached' })
-  expect(await provider.getByRole('option', { name: /官方 API（付费）/ }).count()).toBe(0)
+  await provider.getByRole('option', { name: 'DeepSeek Flash · 官方 API（付费）', exact: true }).waitFor({ state: 'attached', timeout: 5000 })
   expect(calls).toEqual([])
-  await provider.selectOption('deepseek-account')
+  await provider.selectOption('deepseek-official')
   await panel.getByText(COST, { exact: true }).waitFor()
   expect(calls).toEqual([])
   const save = panel.getByRole('button', { name: '保存', exact: true })
@@ -201,7 +193,7 @@ it.skipIf(MODE === 'record')('reuses saved native Account Flash translations acr
     }), MODE)
   await reasoning.locator('[data-disclosure-row]').first().click()
   const translated = reasoning.locator('[data-cot-translation]')
-  await translated.getByText(TRANSLATED, { exact: true }).waitFor()
+  await translated.getByText(TRANSLATED, { exact: true }).waitFor({ timeout: 5000 })
   await expect.poll(() => translated.getAttribute('data-translation-state')).toBe('ready')
   expect(calls).toHaveLength(1)
   await compareOrRefreshGolden(join(EXPECTED, 'paid-result.expected.md'),
@@ -215,7 +207,7 @@ it.skipIf(MODE === 'record')('reuses saved native Account Flash translations acr
   const savedRecords = saved.filter(isTranslationRecord)
   expect(savedRecords).toHaveLength(2)
   expect(savedRecords[0]).toMatchObject({ type: 'plugin:translator/request', ignorable: true,
-    data: { provider: 'deepseek-account', text: ORIGINAL, targetLanguage: 'zh', sourceLanguage: 'auto' } })
+    data: { provider: 'deepseek-official', text: ORIGINAL, targetLanguage: 'zh', sourceLanguage: 'auto' } })
   expect(savedRecords[1]).toMatchObject({ type: 'plugin:translator/result', ignorable: true,
     data: { requestSeq: savedRecords[0]?.seq, text: TRANSLATED } })
   await reasoning.locator('[data-disclosure-row]').first().click(); await translated.waitFor({ state: 'detached' })
@@ -267,14 +259,14 @@ it.skipIf(MODE === 'record')('reuses saved native Account Flash translations acr
   for (const [index, call] of calls.entries()) {
     const targetLanguage = index === 0 ? 'zh' : 'ja', system = SYSTEM.replace('to zh.', `to ${targetLanguage}.`)
     expect(call.path).toBe('/anthropic/v1/messages')
-    expect(call.accountAuth).toBe(true); expect(call.officialAuth).toBe(false)
+    expect(call.officialAuth).toBe(true)
     expect(call.body).toMatchObject({ model: 'deepseek-flash', thinking: { type: 'disabled' }, max_tokens: 8192, system,
       messages: [{ role: 'user', content: [{ type: 'text', text: ORIGINAL }] }] })
     expect(call.body.messages).toEqual([{ role: 'user', content: [{ type: 'text', text: ORIGINAL }] }])
     expect(call.body).not.toHaveProperty('tools')
     expect(call.audit).toMatchObject({ type: 'plugin:translator/request', ignorable: true,
-      data: { provider: 'deepseek-account', text: ORIGINAL, targetLanguage, sourceLanguage: 'auto', metadata: { modelRequest: { system,
-        config: { provider: 'deepseek-account', model: 'deepseek-flash', reasoningEffort: 'off', maxTokens: 8192 },
+      data: { provider: 'deepseek-official', text: ORIGINAL, targetLanguage, sourceLanguage: 'auto', metadata: { modelRequest: { system,
+        config: { provider: 'deepseek-official', model: 'deepseek-flash', reasoningEffort: 'off', maxTokens: 8192 },
         messages: [{ role: 'user', content: [{ type: 'text', text: ORIGINAL }] }] } } } })
     expect(JSON.stringify(call.body.messages)).not.toContain('LIGHTHOUSE')
   }

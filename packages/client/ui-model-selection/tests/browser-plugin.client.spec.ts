@@ -65,10 +65,10 @@ const GROUPS = [{
 }]
 
 /** Boot the plugin over fake faces + a stateful fake host (current moves on selectModel). */
-async function bench(locale: 'zh' | 'en' = 'zh') {
+async function bench(locale: 'zh' | 'en' = 'zh', unconfigured = false) {
   const ctx = new Context()
-  let defaultSelection: ModelSelection = { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
-  let selected = defaultSelection
+  let defaultSelection: ModelSelection | null = unconfigured ? null : { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
+  let selected: ModelSelection = { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
   const calls = { models: 0, select: 0 }
   const projections = new Map<SessionId, SnapshotStore<ModelSelectionProjection | undefined>>()
   // Whether the Host advertises available models for the current route.
@@ -153,8 +153,6 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
       ? { parentSessionId: sid('parent'), childSessionId: id, mode: 'continuable' as const }
       : undefined,
   })
-  const track = vi.fn()
-  ctx.provide('productAnalytics', { enabled: true, track } as never)
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
   await ctx.plugin(function probe() {}).await()
@@ -179,7 +177,7 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
     return { ...handle, projection }
   }
   return {
-    ctx, fiber, mint, calls, remote, track,
+    ctx, fiber, mint, calls, remote,
     contribution: () => contribution!,
     popup: (): PopupSelectSpec => {
       const ui = contribution!.ui
@@ -191,7 +189,7 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
     rejectSelection: () => {
       selectionFailure = new RemoteError('session/writer-held', 'writer held', { sessionId: sid('owned') })
     },
-    setHostCurrent: (selection: ModelSelection) => { defaultSelection = selection },
+    setHostCurrent: (selection: ModelSelection | null) => { defaultSelection = selection },
     setProjected: (id: SessionId, value: ModelSelectionProjection) => { projections.get(id)?.set(value) },
     address: (id: SessionId) => { addressed.add(id) },
     setGroups: (next: typeof GROUPS) => { groups = next },
@@ -204,6 +202,14 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
 const projection = (id: string) => ({ sessionId: sid(id) })
 
 describe('ui-model-selection dual entry', () => {
+  it('keeps an unconfigured model selection empty', async () => {
+    const b = await bench('zh', true)
+    b.mint('unconfigured')
+    const directory = b.ctx.modelDirectories.directoryFor(sid('unconfigured'))
+    await directory.load()
+    expect(directory.store.getSnapshot()).toMatchObject({ current: null, routable: false, status: 'ready' })
+  })
+
   it('carries writer contention to the model seat and localizes the command failure', async () => {
     const b = await bench()
     b.mint('owned')
@@ -242,7 +248,7 @@ describe('ui-model-selection dual entry', () => {
       : { placeholder: 'Search models…', empty: 'No models available.', noResults: 'No matching models.' })
   })
 
-  it('orders popup provider groups account-first while retaining third-party catalog order', async () => {
+  it('preserves popup provider catalog order', async () => {
     const b = await bench()
     try {
       b.setGroups([
@@ -253,7 +259,7 @@ describe('ui-model-selection dual entry', () => {
       b.mint('s1')
       const options = await b.popup().options(projection('s1'), new AbortController().signal)
       expect([...new Set(options.map(option => option.group?.name))])
-        .toEqual(['deepseek-account', 'deepseek-official', 'external', 'last-provider'])
+        .toEqual(['external', 'deepseek-official', 'deepseek-account', 'last-provider'])
     } finally {
       await b.ctx.fiber.dispose()
     }
@@ -298,39 +304,7 @@ describe('ui-model-selection dual entry', () => {
     })
   })
 
-  it.each(['en', 'zh'] as const)('localizes account provider headings in the %s model popup', async (locale) => {
-    const b = await bench(locale)
-    try {
-      b.setGroups([{ ...GROUPS[0]!, id: 'deepseek-account', name: 'DeepSeek Account' }])
-      b.remote.emit('llm/adapters-updated', [])
-      b.mint('s1')
-      const options = await b.popup().options(projection('s1'), new AbortController().signal)
-      expect(options[0]?.group?.label).toBe(locale === 'zh' ? 'DeepSeek 账号' : 'DeepSeek Account')
-    } finally {
-      await b.ctx.fiber.dispose()
-    }
-  })
 
-  it('removes account models from the picker after sign-out', async () => {
-    const b = await bench('en')
-    try {
-      b.setGroups([{ ...GROUPS[0]!, id: 'deepseek-account', name: 'DeepSeek Account' }, ...GROUPS])
-      b.remote.emit('llm/adapters-updated', [])
-      b.mint('s1')
-      const before = await b.popup().options(projection('s1'), new AbortController().signal)
-      expect(before.some(option => option.group?.label === 'DeepSeek Account')).toBe(true)
-      b.setGroups(GROUPS)
-      b.remote.emit('credentials/record-updated', ['deepseek-account-platform'])
-      await vi.waitFor(() => {
-        expect(b.ctx.modelDirectories.directoryFor(sid('s1')).store.getSnapshot().groups).toEqual(GROUPS)
-      })
-      const after = await b.popup().options(projection('s1'), new AbortController().signal)
-      expect(after.some(option => option.group?.label === 'DeepSeek Account')).toBe(false)
-      expect(after.length).toBeGreaterThan(0)
-    } finally {
-      await b.ctx.fiber.dispose()
-    }
-  })
 
   it('both entries share one directory instance per session, isolated across sessions', async () => {
     const b = await bench()
@@ -536,24 +510,4 @@ describe('ui-model-selection dual entry', () => {
     await Promise.resolve()
     expect(b.calls).toEqual({ models: 2, select: 0 })
   })
-})
-
-
-it.each([false, true])('reports accepted switches with blank=%s and no refused switch', async (blank) => {
-  const b = await bench('en')
-  const scope = b.mint('analytics', blank)
-  try {
-    const face = b.seat().inject!(sid('analytics'))
-    await face.select({ provider: 'deepseek-official', model: 'deepseek-v4-pro', reasoningEffort: 'max' })
-    expect(b.track).toHaveBeenCalledWith('model_switch', { ...blank ? {} : { session_id: 'analytics' }, switch_from: 'deepseek-official/deepseek-v4-flash', switch_to: 'deepseek-official/deepseek-v4-pro' })
-    b.track.mockClear()
-    await face.select({ provider: 'deepseek-official', model: 'deepseek-v4-pro', reasoningEffort: 'high' })
-    expect(b.track).toHaveBeenCalledExactlyOnceWith('thinking_level_switch', {
-      ...blank ? {} : { session_id: 'analytics' }, model_name: 'deepseek-official/deepseek-v4-pro', switch_from: 'max', switch_to: 'high',
-    })
-    b.track.mockClear()
-    b.rejectSelection()
-    await face.select({ provider: 'deepseek-official', model: 'deepseek-v4-flash' })
-    expect(b.track).not.toHaveBeenCalled()
-  } finally { await scope.fiber.dispose(); await b.ctx.fiber.dispose() }
 })

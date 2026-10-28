@@ -4,7 +4,6 @@ import type {} from '@deepseek-ai/cordis-plugin-loader'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
 import { BlockAssembler, ReasoningEffortId, type LlmRuntime, type GenerateOptions, type RequestUserInput, type FinishReason, type TextBlock } from '@deepseek-ai/dsh-llm'
-import type { Config as AccountNativeConfig } from '@deepseek-ai/dsh-llm-deepseek-account'
 import type { Config as OfficialNativeConfig } from '@deepseek-ai/dsh-llm-deepseek-api-key'
 import { deadline, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import { deepFreeze } from '@deepseek-ai/dsh-util-values'
@@ -14,20 +13,16 @@ import { TranslationError } from './error.ts'
 import type { TranslationLog } from './storage.ts'
 
 const MODEL = 'deepseek-flash'
-const OWNER_PACKAGES = { 'deepseek-account': '@deepseek-ai/dsh-llm-deepseek-account',
-  'deepseek-official': '@deepseek-ai/dsh-llm-deepseek-api-key' } as const
+const OWNER_PACKAGE = '@deepseek-ai/dsh-llm-deepseek-api-key'
 
 interface NativeOwnerFields { llm: LlmRuntime; fiber: Fiber }
-type NativeOwner = NativeOwnerFields & (
-  | { provider: 'deepseek-account'; config: AccountNativeConfig }
-  | { provider: 'deepseek-official'; config: OfficialNativeConfig }
-)
-/** Configured model input of an owner: Account overrides over its listing, or the Official catalog. */
-type ModelConfig = ReturnType<AccountNativeConfig['modelOverrides']['get']> | ReturnType<OfficialNativeConfig['models']['get']>
+type NativeOwner = NativeOwnerFields & { provider: 'deepseek-official'; config: OfficialNativeConfig }
+/** Configured model input of the native API-key owner. */
+type ModelConfig = ReturnType<OfficialNativeConfig['models']['get']>
 type EligibleOwner = NativeOwner & { modelConfig: ModelConfig; apiKeyRef?: string }
 
 function modelConfigOf(owner: NativeOwner): ModelConfig {
-  return owner.provider === 'deepseek-account' ? owner.config.modelOverrides.get() : owner.config.models.get()
+  return owner.config.models.get()
 }
 
 /**
@@ -65,15 +60,14 @@ function awaitMetadata<T>(start: () => Promise<T>, signal: AbortSignal, track: (
 }
 
 function nativeOwner(ctx: Context, provider: PaidTranslationProvider): NativeOwner | undefined {
+  if (provider !== 'deepseek-official') return undefined
   const llm = ctx.get('llm'), loader = ctx.get('loader')
   if (llm === undefined || loader === undefined || !llm.listProviders().some(row => row.id === provider)) return undefined
   const directory = llm.listConfigurableProviders().find(row => row.provider === provider)
   if (directory === undefined || directory.settingsPath.length !== 0) return undefined
-  const entry = [...loader.entries()].find(row => row.options.id === directory.settingsNs && row.options.name === OWNER_PACKAGES[provider])
+  const entry = [...loader.entries()].find(row => row.options.id === directory.settingsNs && row.options.name === OWNER_PACKAGE)
   if (entry?.fiber?.state !== FiberState.ACTIVE) return undefined
-  return provider === 'deepseek-account'
-    ? { llm, fiber: entry.fiber, provider, config: entry.fiber.config as AccountNativeConfig }
-    : { llm, fiber: entry.fiber, provider, config: entry.fiber.config as OfficialNativeConfig }
+  return { llm, fiber: entry.fiber, provider, config: entry.fiber.config as OfficialNativeConfig }
 }
 
 function unchanged(ctx: Context, provider: PaidTranslationProvider, previous: EligibleOwner): NativeOwner | undefined {
@@ -116,7 +110,7 @@ export async function availablePaidProviders(ctx: Context, config: Config, signa
   track: (work: Promise<unknown>) => void): Promise<readonly TranslationProvider[]> {
   using timeout = deadline(signal, config.deepseekTimeoutMs, 'TRANSLATION_TIMEOUT')
   const available: TranslationProvider[] = ['bing', 'google']
-  for (const provider of ['deepseek-account', 'deepseek-official'] as const) {
+  for (const provider of ['deepseek-official'] as const) {
     try {
       const candidate = await eligible(ctx, provider, timeout.signal, track)
       timeout.signal.throwIfAborted()

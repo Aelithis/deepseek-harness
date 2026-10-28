@@ -128,7 +128,7 @@ async function boot(dir: string, config: object): Promise<Harness> {
   await ctx.plugin(LlmRuntime)
   await ctx.plugin(StaticAttachmentStore)
   await ctx.plugin(LocalCredentialProvider, { path: join(dir, '.credentials.yaml'), watch: false })
-  configurations.set(ctx, await liveConfig(ctx, LlmDeepSeek, config))
+  configurations.set(ctx, await liveConfig(ctx, LlmDeepSeek, { enabled: true, ...config }))
   return { ctx }
 }
 
@@ -169,7 +169,7 @@ describe('request-level dynamic configuration', () => {
     await ctx.credentials.set(KEY_REF, 'sk-arrived')
     await prompt(ctx)
     expect(server.headers[0]?.['x-api-key']).toBe('sk-arrived')
-    await expect(access(join(dir, '.anonymous-user-id'))).resolves.toBeUndefined()
+    await expect(access(join(dir, '.anonymous-user-id'))).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it('rejects a stored credential no header can carry, never echoing it in the failure', async () => {

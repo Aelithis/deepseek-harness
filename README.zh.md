@@ -1,3 +1,5 @@
+> 本 Fork 维护 DSH Private 个人版，移除账户登录、遥测和后台更新，不预设供应商，保留可配置的 API Key 模型与搜索。使用方式参见[个人版说明](docs/upgrade-guide/v0.2.1-rc.3/private-distribution/guide.zh.md)。下方保留上游项目介绍。
+
 # DeepSeek Harness
 
 [English](README.md) | 中文

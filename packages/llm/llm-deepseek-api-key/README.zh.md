@@ -7,6 +7,8 @@ kind: "package-reference"
 
 [English](README.md) | 中文
 
+官方供应商初始处于未启用状态（`enabled: false`）。模型设置中添加后启用路由，删除后清除其用户配置并停用路由，随后可重新添加。
+
 ## 概述
 
 为 `deepseek-official` 注册鉴权、模型发现和官方模型列表。通过 [llm-deepseek](../llm-deepseek/README.zh.md) 共用 Messages 请求实现；本包拥有凭据解析、目录可用性判断和模型准入。
@@ -41,7 +43,7 @@ kind: "package-reference"
 
 第一次访问会等待列表，最长 `modelsTimeoutMs`。之后的访问直接使用已加载的列表，列表超过 `modelsMaxAgeMs` 后在后台刷新；路由空闲时不发请求。获取失败或得到空列表时保留上一份；还没有加载到任何列表时，路由提供当前版本内置的目录（`deepseek-flash` 与 `deepseek-v4-pro`）。列表请求返回 HTTP 401 只让这一次加载失败。每次加载成功、连续失败中的第一次失败及其退回的目录、以及每个因声明无法读取或不可用而被隐藏的列表条目，都会以 `[llm-deepseek-api-key]` 标签写到 stderr；stdout 保留给协议消息，且不记录任何密钥。
 
-列出的模型按[账号路由的规则](../llm-deepseek-account/README.zh.md#use-this-package)提供、与本版本的内置条目合并，并在网络请求之前以 `CLIENT_UPGRADE_REQUIRED` 或 `MODEL_UNSUPPORTED` 拒绝；列表没有列出的模型 id 照常透传。
+列出的模型提供、与本版本的内置条目合并，并在网络请求之前以 `CLIENT_UPGRADE_REQUIRED` 或 `MODEL_UNSUPPORTED` 拒绝；列表没有列出的模型 id 照常透传。
 
 与内置目录不同的 `models` 列表会替换整个目录，并停止请求列表；模型页把编辑后的目录存在这里。删除这个列表（即模型页上的**恢复默认模型**）后，路由重新使用列表，即使缓存的列表尚未过期，下一次访问也会重新加载。与内置目录完全相同的列表视为未自定义。
 

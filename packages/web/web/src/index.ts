@@ -48,14 +48,14 @@ interface Selection<P> {
 
 /**
  * Config for the web seam. `searchProvider` / `fetchProvider` pin which provider
- * wins for each capability; both are optional (a single registered usable
- * provider auto-selects). Each operation reads the current value, so a settings
+ * wins for each capability. Search requires an explicit selection; fetch may
+ * use its sole available provider. Each operation reads the current value, so a settings
  * change applies to the next search or fetch without remounting the service.
  * Operational overrides such as environment variables must feed these same
  * fields rather than introduce a hidden priority chain.
  */
 export interface WebRuntimeConfig {
-  /** Explicit search provider id. Omitted = auto-select when exactly one usable. */
+  /** Explicit search provider id; omission disables search. */
   readonly searchProvider: Volatile<string | undefined>
   /** Explicit fetch provider id. Omitted = auto-select when exactly one usable. */
   readonly fetchProvider: Volatile<string | undefined>
@@ -69,9 +69,10 @@ export interface WebRuntimeConfig {
  * - A configured id not registered → `WEB_PROVIDER_CONFIGURED_MISSING`.
  * - A configured id registered but unavailable →
  *   `WEB_PROVIDER_CONFIGURED_UNAVAILABLE`.
- * - No id configured, exactly one registered usable provider → that provider.
- * - No id configured, multiple usable providers → `WEB_PROVIDER_AMBIGUOUS`.
- * - No id configured, no usable provider → `WEB_PROVIDER_UNAVAILABLE`.
+ * - No search id configured → `WEB_PROVIDER_UNAVAILABLE`.
+ * - No fetch id configured, exactly one registered usable provider → that provider.
+ * - No fetch id configured, multiple usable providers → `WEB_PROVIDER_AMBIGUOUS`.
+ * - No fetch id configured, no usable provider → `WEB_PROVIDER_UNAVAILABLE`.
  */
 export class WebRuntime extends Service {
   /**
@@ -141,7 +142,10 @@ export class WebRuntime extends Service {
    */
   async search(request: WebSearchRequest, signal?: AbortSignal): Promise<WebSearchResult> {
     const configuredId = this.config.searchProvider.get() ?? this.searchProviderEnv
-    const provider = resolveProvider({
+    if (configuredId === undefined || configuredId.length === 0) {
+      throw new WebError('尚未配置搜索供应商，请在网页搜索设置中启用搜索。', 'WEB_PROVIDER_UNAVAILABLE')
+    }
+    const provider = await resolveProvider({
       providers: this.searchProviders,
       ...configuredId !== undefined ? { configuredId } : {},
     })
@@ -159,7 +163,7 @@ export class WebRuntime extends Service {
    */
   async fetch(request: WebFetchRequest, signal?: AbortSignal): Promise<WebFetchResult> {
     const configuredId = this.config.fetchProvider.get() ?? this.fetchProviderEnv
-    const provider = resolveProvider({
+    const provider = await resolveProvider({
       providers: this.fetchProviders,
       ...configuredId !== undefined ? { configuredId } : {},
     })
@@ -169,23 +173,25 @@ export class WebRuntime extends Service {
 
 interface ResolvableProvider {
   readonly id: string
-  available(): boolean
+  available(): boolean | Promise<boolean>
 }
 
 /** Resolve the selected provider or throw the matching {@link WebError}. */
-function resolveProvider<P extends ResolvableProvider>(selection: Selection<P>): P {
+async function resolveProvider<P extends ResolvableProvider>(selection: Selection<P>): Promise<P> {
   const { configuredId, providers } = selection
   if (configuredId !== undefined) {
     const provider = providers.get(configuredId)
     if (!provider) {
       throw new WebError(`configured web provider "${configuredId}" is not registered`, 'WEB_PROVIDER_CONFIGURED_MISSING')
     }
-    if (!provider.available()) {
+    if (!await provider.available()) {
       throw new WebError(`configured web provider "${configuredId}" is registered but unavailable`, 'WEB_PROVIDER_CONFIGURED_UNAVAILABLE')
     }
     return provider
   }
-  const usable = [...providers.values()].filter(provider => provider.available())
+  const candidates = [...providers.values()]
+  const availability = await Promise.all(candidates.map(provider => provider.available()))
+  const usable = candidates.filter((_, index) => availability[index])
   const [single] = usable
   if (single === undefined) {
     throw new WebError('no usable web provider is registered', 'WEB_PROVIDER_UNAVAILABLE')

@@ -907,3 +907,19 @@ it.each([new Error('catalog disconnected'), 'catalog disconnected'])('reports ca
       .rejects.toMatchObject({ code: 'session/model-unavailable', message: 'catalog disconnected' })
   } finally { read.mockRestore(); await ctx.fiber.dispose() }
 })
+
+it('publishes an unconfigured catalog and refuses a prompt before recording user data', async () => {
+  const { ctx, sessionId, agent } = await harness()
+  onTestFinished(() => ctx.fiber.dispose())
+  const { default: DefaultModel } = await import('@deepseek-ai/dsh-agent-default-model')
+  await ctx.plugin(DefaultModel, {})
+  const remote = createSessionTestRemote(ctx, {
+    defaultModelSelection: () => ctx.agentDefaultModel.currentSelection(), cwd: '/tmp',
+  })
+  expect((await buildModelCatalog(ctx)).default).toBeNull()
+  const before = agent.session.snapshotEvents().length
+  expect(await remote.prompt(promptRequest({
+    sessionId, mode: 'queue', content: [{ type: 'text', text: '不得发送' }],
+  }))).toMatchObject({ ok: false, error: { code: 'session/model-not-selected' } })
+  expect(agent.session.snapshotEvents()).toHaveLength(before)
+})
