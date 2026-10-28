@@ -1,0 +1,71 @@
+name: DSH Private Windows
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.repository == 'Aelithis/deepseek-harness'
+    runs-on: windows-2025
+    timeout-minutes: 180
+    defaults:
+      run:
+        shell: pwsh
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3
+        with:
+          version: 11.28.5
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24.22.1'
+      - name: 核对平台并安装锁定依赖
+        run: |
+          if ((node -p "process.platform + '-' + process.arch") -ne 'win32-x64') { throw 'Expected Windows x64' }
+          pnpm install --frozen-lockfile
+      - name: 构建个人版 EXE
+        run: pnpm run package:desktop:win:x64:unsigned
+      - name: 检查安装内容及回传检测能力
+        run: |
+          node --test apps/desktop/tests/private-runtime.node.test.mjs apps/desktop/tests/private-build-manifest.node.test.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node apps/desktop/scripts/verify-private-runtime.mjs apps/desktop/.desktop-build/targets/win-x64/dsh apps/desktop/lib
+      - name: 保存源码、工具与依赖记录
+        run: node apps/desktop/scripts/private-build-manifest.mjs win-x64
+      - name: 验收 Windows 实包启动
+        run: |
+          $installers = @(Get-ChildItem apps/desktop/.desktop-build/private-distribution/*.exe)
+          if ($installers.Count -ne 1) { throw 'Expected one private Windows installer' }
+          node apps/desktop/scripts/smoke-private-windows.mjs --installer $installers[0].FullName --output apps/desktop/.desktop-build/private-smoke
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item -Recurse apps/desktop/.desktop-build/private-smoke apps/desktop/.desktop-build/private-distribution/smoke
+      - name: 记录安装包构建来源
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
+        with:
+          subject-path: apps/desktop/.desktop-build/private-distribution/*.exe
+      - name: 上传安装包与核对记录
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: DSH-Private-win-x64-${{ github.sha }}
+          path: apps/desktop/.desktop-build/private-distribution/*
+          if-no-files-found: error
+          retention-days: 30
+      - name: 保存失败诊断
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: DSH-Private-win-x64-diagnostics-${{ github.run_id }}
+          path: |
+            apps/desktop/.desktop-build/packaging-runs/**
+            apps/desktop/.desktop-build/private-smoke/**
+          if-no-files-found: ignore
+          retention-days: 14

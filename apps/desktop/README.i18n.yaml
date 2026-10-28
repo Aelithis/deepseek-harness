@@ -3,8 +3,8 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write apps/desktop/README.md
 /:
-  en: a64246c9220696a6
-  zh: c86cdc0a9e47eb9d
+  en: 9b6f074d0ca3f666
+  zh: 2e649662bccfbcb4
 /dsh-private-desktop:
   en: fc2f3d5e05eb200f
   zh: 5a7ac17a334e57e3
@@ -15,8 +15,8 @@
   en: 3c931252d1bf48b7
   zh: 851d6afdda26ebb5
 /dsh-private-desktop/build-and-upgrade:
-  en: 63381fdc548aeb89
-  zh: e0310eaf793a2404
+  en: e6b512c8a90d5ffc
+  zh: d5a332978018a40d
 /dsh-private-desktop/development-and-checks:
   en: 0762089eaf58c437
   zh: 97cc76b850550092

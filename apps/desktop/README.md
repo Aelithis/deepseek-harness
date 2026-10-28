@@ -1,5 +1,5 @@
 ---
-description: "DSH Private runs the local Harness workspace in an independent macOS desktop application."
+description: "DSH Private runs the local Harness workspace in an independent macOS or Windows desktop application."
 ---
 
 # DSH Private Desktop
@@ -24,9 +24,10 @@ Install the repository's locked dependencies, then run:
 
 ```sh
 pnpm run package:desktop:mac:arm64:unsigned
+pnpm run package:desktop:win:x64:unsigned
 ```
 
-This produces a locally signed macOS ARM64 DMG without Apple Developer ID or notarization credentials. The [manual GitHub workflow](../../.github/workflows/private-macos.yml) builds it on a GitHub-hosted runner and retains its source commit, dependency records, SHA256, and build attestation. Upgrades use those installers manually; no background update service is included.
+Run the matching command on its native operating system. macOS produces a locally signed ARM64 DMG without Apple Developer ID or notarization credentials; Windows produces an unsigned x64 EXE without a release configuration file or signing credentials. The manual GitHub workflows for [macOS](../../.github/workflows/private-macos.yml) and [Windows](../../.github/workflows/private-windows.yml) build on GitHub-hosted runners and retain the source commit, dependency records, SHA256, and build attestation. Upgrades use those installers manually; no background update service is included.
 
 ## Development and checks
 

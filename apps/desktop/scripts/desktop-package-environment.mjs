@@ -19,17 +19,20 @@ const AMBIENT_RELEASE_SETTING = /^(?:DSH_DESKTOP_(?:APP_ID|AUTO_UPDATE_ENV|MANDA
 const FILE_SETTINGS = ['DSH_DESKTOP_WINDOWS_CER_FILE', 'DSH_DESKTOP_WINDOWS_SIGNTOOL', 'APPLE_API_KEY', 'APPLE_KEYCHAIN', 'CSC_LINK']
 
 /**
- * Select local macOS test defaults without reading dotenv files or inheriting release settings.
+ * Select Private unsigned defaults without reading dotenv files or inheriting release settings.
  * @param {NodeJS.ProcessEnv} environment Parent environment, retained for build tools and networking.
  * @returns {NodeJS.ProcessEnv} Unsigned build environment with the standard application identifier and no update policy.
  */
-export function localMacOSPackageEnvironment(environment = process.env) {
+export function localUnsignedPackageEnvironment(environment = process.env) {
   return {
     ...Object.fromEntries(Object.entries(environment).filter(([name]) => !AMBIENT_RELEASE_SETTING.test(name))),
     DSH_DESKTOP_APP_ID: 'org.aelith.dsh-private',
     DSH_DESKTOP_UNSIGNED: '1',
   }
 }
+
+/** Backward-compatible name for the unsigned macOS packaging environment. */
+export const localMacOSPackageEnvironment = localUnsignedPackageEnvironment
 
 /**
  * Read a machine preset when selected, otherwise the target's required dotenv; no ambient release fallback.

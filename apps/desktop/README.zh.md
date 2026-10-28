@@ -1,5 +1,5 @@
 ---
-description: "DSH Private 以独立的 macOS 桌面应用运行本地 Harness 工作区。"
+description: "DSH Private 以独立的 macOS 或 Windows 桌面应用运行本地 Harness 工作区。"
 ---
 
 # DSH Private 桌面端
@@ -24,9 +24,10 @@ Electron 以 Node 模式子进程运行私有 Host。Host 通过带鉴权的本�
 
 ```sh
 pnpm run package:desktop:mac:arm64:unsigned
+pnpm run package:desktop:win:x64:unsigned
 ```
 
-命令生成采用本地签名的 macOS ARM64 DMG，不需要 Apple Developer ID 或公证凭据。[GitHub 手动工作流](../../.github/workflows/private-macos.yml)在 GitHub 托管构建机上构建，保存源码提交、依赖记录、SHA256 和构建来源证明。后续使用这些安装包手动升级，程序不包含后台更新服务。
+在对应操作系统上运行相应命令。macOS 生成采用本地签名的 ARM64 DMG，不需要 Apple Developer ID 或公证凭据；Windows 生成无签名的 x64 EXE，不需要发布配置文件或签名凭据。[macOS](../../.github/workflows/private-macos.yml) 和 [Windows](../../.github/workflows/private-windows.yml) 的 GitHub 手动工作流均在 GitHub 托管构建机上构建，保存源码提交、依赖记录、SHA256 和构建来源证明。后续使用这些安装包手动升级，程序不包含后台更新服务。
 
 ## 开发与检查
 
