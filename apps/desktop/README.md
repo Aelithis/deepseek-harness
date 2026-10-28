@@ -18,6 +18,8 @@ Electron runs the private Host as a Node-mode child. The Host serves the workspa
 
 ## Build and upgrade
 
+The system native addon is built and packed from this checkout. Platform packages for other operating systems or CPU architectures are omitted from the target runtime.
+
 Install the repository's locked dependencies, then run:
 
 ```sh

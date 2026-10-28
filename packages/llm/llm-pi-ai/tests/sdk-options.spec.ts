@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { StreamChunk } from '@deepseek-ai/dsh-llm'
+import type { GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
 
 const streamSimple = vi.hoisted(() => vi.fn())
 
@@ -56,6 +56,20 @@ describe('pi-ai SDK retry boundary', () => {
       type: 'finish',
       reason: { kind: 'error', failure: { message: 'mock SDK boundary' } },
     })
+  })
+
+  it('does not pass the local session ID to the SDK', async () => {
+    streamSimple.mockImplementation(() => { throw new Error('mock SDK boundary') })
+    const sessionId = 'private-local-session-id' as NonNullable<GenerateOptions['sessionId']>
+    for await (const _chunk of gatewayAdapter().stream({
+      provider: 'local-gateway', model: 'local-model', messages: [], sessionId,
+      temperature: 0.4, maxTokens: 128,
+    })) { /* drain */ }
+
+    const sdkOptions = streamSimple.mock.calls[0]?.[2]
+    expect(sdkOptions).toMatchObject({ maxRetries: 0, apiKey: 'test-key', temperature: 0.4, maxTokens: 128 })
+    expect(sdkOptions).not.toHaveProperty('sessionId')
+    expect(JSON.stringify(sdkOptions)).not.toContain(sessionId)
   })
 
   it('dispatches a hand-declared route to the endpoint and model its configuration describes', async () => {

@@ -1,6 +1,6 @@
 /** Constrain Desktop's independent installation to the reviewed repository dependency graph. */
 import { readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import yaml from 'js-yaml'
 
 interface Dependency {
@@ -40,14 +40,20 @@ function identity(key: string): { name: string; version: string } | undefined {
  * Multiple peer contexts remain distinct; conflicting peer edges are checked against the final lock.
  * @param projectRoot Temporary runtime project containing local core package overrides.
  * @param repositoryRoot Source checkout containing the reviewed root lockfile.
+ * @param target Platform of the packaged runtime, used to omit incompatible workspace binaries.
  */
-export function constrainRuntimeDependencies(projectRoot: string, repositoryRoot: string): void {
+export function constrainRuntimeDependencies(
+  projectRoot: string,
+  repositoryRoot: string,
+  target: { platform: string; arch: string } = { platform: process.platform, arch: process.arch },
+): void {
   const root = loadLock(repositoryRoot)
   const workspacePath = join(projectRoot, 'pnpm-workspace.yaml')
   const workspace = yaml.load(readFileSync(workspacePath, 'utf8')) as {
     overrides?: Record<string, string>
   }
   const candidates = new Map<string, Set<string>>()
+  const excluded: Record<string, string> = {}
   const add = (selector: string, raw: string): void => {
     const version = raw.split('(')[0]!
     if (!/^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/u.test(version)) return
@@ -71,8 +77,19 @@ export function constrainRuntimeDependencies(projectRoot: string, repositoryRoot
     for (const [name, entry] of Object.entries({ ...importer.dependencies, ...importer.optionalDependencies })) {
       add(`${manifest.name}@${manifest.version}>${name}`, entry.version)
     }
+    for (const [name, entry] of Object.entries(importer.optionalDependencies ?? {})) {
+      if (!entry.version.startsWith('link:')) continue
+      const dependency = JSON.parse(readFileSync(resolve(repositoryRoot, path, entry.version.slice(5), 'package.json'), 'utf8')) as {
+        os?: string[]
+        cpu?: string[]
+      }
+      if ((dependency.os !== undefined && !dependency.os.includes(target.platform))
+        || (dependency.cpu !== undefined && !dependency.cpu.includes(target.arch))) {
+        excluded[`${manifest.name}>${name}`] = '-'
+      }
+    }
   }
-  const overrides = { ...workspace.overrides }
+  const overrides = { ...workspace.overrides, ...excluded }
   for (const [selector, versions] of candidates) {
     if (versions.size === 1 && overrides[selector] === undefined) overrides[selector] = [...versions][0]!
   }

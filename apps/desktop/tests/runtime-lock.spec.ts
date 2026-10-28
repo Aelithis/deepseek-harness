@@ -53,6 +53,25 @@ it('accepts reviewed external bytes and separately verified local package archiv
   expect(() => verifyRuntimeDependencyLock(project, source)).not.toThrow()
 })
 
+it('omits incompatible workspace binaries without replacing the target source build with a registry package', () => {
+  const { source, project } = fixture()
+  for (const [name, os, cpu] of [['native-mac', 'darwin', 'arm64'], ['native-linux', 'linux', 'x64']]) {
+    const directory = join(source, 'packages', name!)
+    mkdirSync(directory)
+    writeFileSync(join(directory, 'package.json'), JSON.stringify({ name, version: '1.0.0', os: [os], cpu: [cpu] }))
+  }
+  writeFileSync(join(source, 'pnpm-lock.yaml'), yaml.dump({ importers: { 'packages/provider': {
+    optionalDependencies: {
+      'native-mac': { specifier: 'workspace:*', version: 'link:../native-mac' },
+      'native-linux': { specifier: 'workspace:*', version: 'link:../native-linux' },
+    },
+  } } }))
+  writeFileSync(join(project, 'pnpm-workspace.yaml'), yaml.dump({ overrides: { 'native-mac': 'file:./built-native.tgz' } }))
+  constrainRuntimeDependencies(project, source, { platform: 'darwin', arch: 'arm64' })
+  const result = yaml.load(readFileSync(join(project, 'pnpm-workspace.yaml'), 'utf8')) as { overrides: Record<string, string> }
+  expect(result.overrides).toEqual({ 'native-mac': 'file:./built-native.tgz', '@test/provider>native-linux': '-' })
+})
+
 it.each([
   ['parser@2.4.0', 'sha512-changed'],
   ['parser@2.5.0', 'sha512-new-version'],

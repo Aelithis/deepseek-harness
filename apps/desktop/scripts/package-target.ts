@@ -447,6 +447,10 @@ export async function packageTarget(
     '--pack-destination',
     buildPaths.packedLandlock,
   ], buildEnv, REPOSITORY_ROOT)
+  if (target.platform === 'darwin') {
+    await execute(['exec', 'npm', 'pack', '--pack-destination', buildPaths.packedLandlock],
+      buildEnv, join(REPOSITORY_ROOT, 'native/system/packages', `darwin-${target.arch}`))
+  }
   await execute(['run', 'prepare:runtime', ...(signPrimaryRuntime ? ['--defer-primary-runtime-smoke'] : [])], downloadEnv)
   if (signPrimaryRuntime) await execute(['run', 'sign:primary-runtime'], electronBuilderEnv)
   await execute(['run', 'prepare:packages'], targetEnv)

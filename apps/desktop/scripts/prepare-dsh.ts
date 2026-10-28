@@ -126,7 +126,7 @@ async function main(): Promise<void> {
       createRuntimeProjectMetadata(BUILD_ROOT, release)
       return prepareRuntimePatches(BUILD_ROOT, resolve(APP_ROOT, '..', '..'))
     })
-    constrainRuntimeDependencies(BUILD_ROOT, resolve(APP_ROOT, '..', '..'))
+    constrainRuntimeDependencies(BUILD_ROOT, resolve(APP_ROOT, '..', '..'), desktopTargetPlatform(resolveDesktopBuildTarget()))
     await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:lockfile', () => runPnpm(['install', '--lockfile-only']))
     verifyRuntimeDependencyLock(BUILD_ROOT, resolve(APP_ROOT, '..', '..'))
     copyFileSync(join(BUILD_ROOT, 'pnpm-lock.yaml'), join(BUILD_PATHS.root, 'runtime-pnpm-lock.yaml'))
