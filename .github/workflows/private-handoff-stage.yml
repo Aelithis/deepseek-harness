@@ -55,5 +55,6 @@ jobs:
         with:
           name: handoff-${{ inputs.phase }}
           path: .private-handoff/*
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 30
