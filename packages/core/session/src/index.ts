@@ -7,7 +7,7 @@
  */
 
 import { Context, Service } from '@deepseek-ai/cordis'
-import { isAbsolute } from 'node:path'
+import { isAbsolute, posix, win32, resolve } from 'node:path'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import { assertNever, deepFreeze, snapshotJsonValue } from '@deepseek-ai/dsh-util-values'
 import { scopeOf, scopeTarget } from '@deepseek-ai/dsh-scope'
@@ -34,6 +34,23 @@ export type { SessionSurface, SurfaceFoldReplacement, SurfaceFoldResult, Session
 export { deriveEventMessage, foldSurface, isAppendSurfaceEvent, isReplacementSurfaceEvent, isSurfaceEvent, isSurfaceEligibleType } from './surface.ts'
 export { canonicalHeader, foldRequestHeader, headerEquals } from './request-header.ts'
 export { KNOWN_SESSION_EVENT_TYPES } from './known-event-types.ts'
+
+/**
+ * Recognize fully qualified persisted paths from supported host platforms.
+ * @param path - Persisted directory.
+ * @returns whether it is a POSIX, drive-qualified Windows, or UNC absolute path.
+ */
+export function isSessionAbsolutePath(path: string): boolean {
+  return posix.isAbsolute(path) || /^[A-Za-z]:[\\/]/.test(path) || /^\\\\[^\\]+\\[^\\]+/.test(path)
+}
+
+/** Local execution directory for the known roots of one synchronized project. */
+export interface ProjectDirectoryMapping {
+  /** Absolute project roots recorded by each device. */
+  roots: string[]
+  /** Absolute project directory on this host. */
+  directory: string
+}
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -111,7 +128,7 @@ function validateSessionHeader(id: SessionId, input: unknown): SessionHeader {
   }
   if (record.cwd !== undefined) {
     if (typeof record.cwd !== 'string') throw new Error('session header cwd must be a string')
-    if (!isAbsolute(record.cwd)) {
+    if (!isSessionAbsolutePath(record.cwd)) {
       throw new Error(`session header cwd must be an absolute path, got "${record.cwd}"`)
     }
   }
@@ -1047,6 +1064,67 @@ export class SessionForkError extends Error {
  * a session published outside that lifecycle persists nothing.
  */
 export class SessionStore extends Service {
+  private readonly projectMappings = new Set<ProjectDirectoryMapping & { primaryRoot: string }>()
+
+  /**
+   * Register a device-local project mapping without changing persisted headers.
+   * @param mapping - Known device roots and the local directory.
+   * @returns the registering fiber's disposer.
+   */
+  registerProjectMapping(mapping: ProjectDirectoryMapping): () => Promise<void> {
+    const primaryRoot = mapping.roots[0]
+    if (!isAbsolute(mapping.directory) || primaryRoot === undefined || !mapping.roots.every(isSessionAbsolutePath)) {
+      throw new Error('session project mapping requires absolute roots and a local absolute directory')
+    }
+    const entry = { roots: [...mapping.roots], directory: resolve(mapping.directory), primaryRoot }
+    for (const current of this.projectMappings) {
+      if (current.roots.some(root => entry.roots.includes(root))) throw new Error('session project mapping root is already registered')
+    }
+    return this.ctx.effect(() => {
+      this.projectMappings.add(entry)
+      return () => { this.projectMappings.delete(entry) }
+    }, 'sessions.registerProjectMapping()')
+  }
+
+  /**
+   * Project a logged project path to this host, preserving root-relative suffixes.
+   * @param path - Persisted absolute directory or file path.
+   * @returns the mapped local path, or the original when no root contains it.
+   */
+  resolveProjectPath(path: string): string {
+    if (!isSessionAbsolutePath(path)) return path
+    let selected: { root: string; directory: string; relative: string[] } | undefined
+    for (const mapping of this.projectMappings) {
+      for (const root of mapping.roots) {
+        const dialect = /^[A-Za-z]:[\\/]|^\\\\/.test(root) ? win32 : posix
+        const relative = dialect.relative(root, path)
+        if (relative === '..' || relative.startsWith(`..${dialect.sep}`) || dialect.isAbsolute(relative)) continue
+        if (selected === undefined || root.length > selected.root.length) {
+          selected = { root, directory: mapping.directory, relative: relative.split(dialect.sep) }
+        }
+      }
+    }
+    return selected === undefined ? path : resolve(selected.directory, ...selected.relative)
+  }
+
+  /**
+   * Record a local project path using the immutable original project's spelling.
+   * @param path - Local absolute directory.
+   * @param root - Original Session project root; omitted values use the mapping's first root.
+   * @returns a portable recorded path, or the original local path outside mapped projects.
+   */
+  resolveRecordedProjectPath(path: string, root?: string): string {
+    for (const mapping of this.projectMappings) {
+      if (root !== undefined && !mapping.roots.includes(root)) continue
+      const relative = (process.platform === 'win32' ? win32 : posix).relative(mapping.directory, path)
+      if (relative === '..' || relative.startsWith(`..${process.platform === 'win32' ? win32.sep : posix.sep}`) || isAbsolute(relative)) continue
+      const recordedRoot = root ?? mapping.primaryRoot
+      const dialect = /^[A-Za-z]:[\\/]|^\\\\/.test(recordedRoot) ? win32 : posix
+      return dialect.join(recordedRoot, ...relative.split(process.platform === 'win32' ? /[\\/]/ : /\//))
+    }
+    return path
+  }
+
   private store = new Map<SessionId, SessionEntry>()
   private counter = 0
   private readonly projections: SessionMessageProjection[] = []

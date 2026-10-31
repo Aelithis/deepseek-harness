@@ -25,6 +25,8 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
+Current header admission accepts POSIX, drive-qualified Windows, and UNC absolute directories regardless of the reader host. Physical log paths still derive from the original header directory; local execution mappings never relocate or duplicate the Session artifact.
+
 Mount this backend when a composition needs durable sessions backed by per-session files. The common path is explicit: load the session service, mount the backend, and give it a root directory.
 
 ### When to choose it

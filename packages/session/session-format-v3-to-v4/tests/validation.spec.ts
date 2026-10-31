@@ -80,6 +80,10 @@ describe('assertReleasedV4Header', () => {
     })) }).not.toThrow()
   })
 
+  it.each(['C:\\Projects\\shared', '\\\\server\\share\\project', '/Volumes/shared'])('accepts native V4 absolute paths independently of reader platform: %s', (cwd) => {
+    expect(() => { assertReleasedV4Header(header({ cwd })) }).not.toThrow()
+  })
+
   it('refuses malformed headers', () => {
     const malformed: Array<[string, Record<string, unknown>, RegExp]> = [
       ['wrong version', { ...header(), version: 2 }, /expected format v4/],

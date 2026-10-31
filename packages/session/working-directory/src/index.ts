@@ -10,7 +10,7 @@ import { z as zod } from 'zod'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-fs'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import type { Session } from '@deepseek-ai/dsh-session'
+import { isSessionAbsolutePath, type Session, type ProjectDirectoryMapping } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 
@@ -32,9 +32,9 @@ declare module '@deepseek-ai/dsh-llm' {
 
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
-    /** Effective working directory; the immutable Session header retains the original project. */
+    /** Recorded working directory; local project mappings select its execution directory. */
     'working-directory/change': {
-      /** Absolute directory used by subsequent directory-based operations. */
+      /** Absolute recorded directory, projected to the local project before execution. */
       cwd: string
     }
   }
@@ -60,7 +60,7 @@ export interface Config {
 
 /** One owner for each Session's effective directory and its model-visible changes. */
 export class WorkingDirectoryService extends Service {
-  static inject = ['fs', 'sessionProjections', 'systemPrompt']
+  static inject = ['sessions', 'fs', 'sessionProjections', 'systemPrompt']
 
   static Config: z<Config> = z.object({
     defaultDirectory: z.string(),
@@ -78,14 +78,14 @@ export class WorkingDirectoryService extends Service {
     if (!isAbsolute(directory)) throw new Error('working-directory: defaultDirectory must be absolute')
     this.defaultDirectory = directory
 
-    const directorySchema = zod.string().min(1).refine(isAbsolute).nullable()
+    const directorySchema = zod.string().min(1).refine(isSessionAbsolutePath).nullable()
     ctx.sessionProjections.register({
       key: 'workingDirectory',
       stateVersion: 1,
       stateSchema: directorySchema,
       init: header => header.cwd ?? null,
       apply: (state, event) => event.type === 'working-directory/change' ? event.data.cwd : state,
-      wire: { viewSchema: directorySchema, view: state => state },
+      wire: { viewSchema: directorySchema, view: state => state === null ? null : this.ctx.sessions.resolveProjectPath(state) },
     })
     ctx.systemPrompt.context({
       name: 'working-directory:current',
@@ -115,12 +115,30 @@ export class WorkingDirectoryService extends Service {
   }
 
   /**
+   * Register the local directory for a synchronized project's known device roots.
+   * @param mapping - Original project roots and the selected local directory.
+   * @returns the registering fiber's disposer; mappings are never persisted to the Session.
+   */
+  registerProjectMapping(mapping: ProjectDirectoryMapping): () => Promise<void> {
+    return this.ctx.sessions.registerProjectMapping(mapping)
+  }
+
+  /**
+   * Read the local project root used for permissions and workspace membership.
+   * @param session - Session whose immutable project root is requested.
+   * @returns the mapped project root or deployment fallback.
+   */
+  projectRoot(session: Session): string {
+    return this.ctx.sessions.resolveProjectPath(session.header.cwd ?? this.defaultDirectory)
+  }
+
+  /**
    * Read the committed directory without filesystem I/O.
    * @param session - Session whose directory is requested.
    * @returns its effective absolute directory.
    */
   get(session: Session): string {
-    return this.ctx.sessionProjections.stateOf(session, 'workingDirectory') ?? this.defaultDirectory
+    return this.ctx.sessions.resolveProjectPath(this.ctx.sessionProjections.stateOf(session, 'workingDirectory') ?? this.defaultDirectory)
   }
 
   /**
@@ -134,17 +152,18 @@ export class WorkingDirectoryService extends Service {
   ensure(agent: Agent, signal?: AbortSignal): Promise<string> {
     return this.serialize(agent, signal, async (control) => {
       const current = this.get(agent.session)
+      if (!isAbsolute(current) || (process.platform === 'win32' && !/^[A-Za-z]:[\\/]|^\\\\/.test(current))) throw new Error(`working-directory: project directory requires a local mapping: ${JSON.stringify(current)}`)
       const target = await this.ctx.fs.resolve(current, { signal: control })
       const info = await this.ctx.fs.stat(target, control)
       control.throwIfAborted()
       agent.ctx.fiber.assertActive()
       if (info?.type === 'directory') {
         if (this.ctx.sessionProjections.stateOf(agent.session, 'workingDirectory') === null) {
-          agent.session.append('working-directory/change', { cwd: current })
+          agent.session.append('working-directory/change', { cwd: this.ctx.sessions.resolveRecordedProjectPath(current, agent.session.header.cwd) })
         }
         return current
       }
-      const original = agent.session.header.cwd ?? this.defaultDirectory
+      const original = this.projectRoot(agent.session)
       const restored = await this.directory(original, original, control)
       this.commit(agent, restored, true, control)
       return restored
@@ -163,7 +182,7 @@ export class WorkingDirectoryService extends Service {
   set(agent: Agent, path: string, signal?: AbortSignal): Promise<string> {
     return this.serialize(agent, signal, async (control) => {
       if (path.length === 0) throw new Error('working-directory: cd must not be empty')
-      const directory = await this.directory(path, this.get(agent.session), control)
+      const directory = await this.directory(this.ctx.sessions.resolveProjectPath(path), this.get(agent.session), control)
       this.commit(agent, directory, false, control)
       return directory
     })
@@ -174,6 +193,9 @@ export class WorkingDirectoryService extends Service {
   }
 
   private async directory(path: string, cwd: string, signal: AbortSignal): Promise<string> {
+    if (isSessionAbsolutePath(path) && (!isAbsolute(path) || (process.platform === 'win32' && !/^[A-Za-z]:[\\/]|^\\\\/.test(path)))) {
+      throw new Error(`working-directory: project directory requires a local mapping: ${JSON.stringify(path)}`)
+    }
     const target = await this.ctx.fs.resolve(path, { cwd, signal })
     const info = await this.ctx.fs.stat(target, signal)
     signal.throwIfAborted()
@@ -188,7 +210,7 @@ export class WorkingDirectoryService extends Service {
     agent.ctx.fiber.assertActive()
     const previous = this.get(agent.session)
     if (previous === directory) return
-    agent.session.append('working-directory/change', { cwd: directory })
+    agent.session.append('working-directory/change', { cwd: this.ctx.sessions.resolveRecordedProjectPath(directory, agent.session.header.cwd) })
     const notice = createUserMessage({
       content: [{
         type: 'text',

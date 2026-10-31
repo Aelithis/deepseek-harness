@@ -1,6 +1,6 @@
 /** Native V4 metadata and generation-owned relationship validation. */
 
-import { isAbsolute } from 'node:path'
+import { posix } from 'node:path'
 import { SessionFormatError, SessionFormatUnsupportedMigrationError, isSessionFormatJsonObject, sessionFormatCount } from '@deepseek-ai/dsh-session-format'
 import type { SessionFormatArtifact, SessionFormatEvent } from '@deepseek-ai/dsh-session-format'
 import { assertV4DeveloperData } from './developer.ts'
@@ -28,7 +28,7 @@ export function assertReleasedV4Header(header: unknown): void {
   sessionFormatCount(header.createdAt, 'format v4 header createdAt')
   sessionFormatCount(header.delegationDepth, 'format v4 header delegationDepth')
   if (typeof header.isSeeded !== 'boolean') throw new SessionFormatError('format v4 header isSeeded must be boolean')
-  if (header.cwd !== undefined && (typeof header.cwd !== 'string' || !isAbsolute(header.cwd))) {
+  if (header.cwd !== undefined && (typeof header.cwd !== 'string' || !(posix.isAbsolute(header.cwd) || /^[A-Za-z]:[\\/]/.test(header.cwd) || /^\\\\[^\\]+\\[^\\]+/.test(header.cwd)))) {
     throw new SessionFormatError('format v4 header cwd must be absolute')
   }
   for (const key of ['parentSession', 'agentPreset']) {

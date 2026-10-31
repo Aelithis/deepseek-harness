@@ -25,6 +25,8 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
+Session header 按来源平台接受 POSIX、Windows 盘符和 UNC 绝对目录，不受读取端平台影响。`registerProjectMapping` 管理可释放的本机根目录映射；`resolveProjectPath` 将记录路径投影到本机，`resolveRecordedProjectPath` 将本机项目路径转换回原 header 根。这些操作保留 Session ID、header 和历史事件；映射不写入会话，也不参与同步。
+
 在必须存在会话的任何地方挂载 `dsh-session`。它在内存中创建并持有事件溯源的 `Session` 实例；持久存储由订阅 `session/event` 流的持久化插件叠加。
 
 ### 创建与检查会话

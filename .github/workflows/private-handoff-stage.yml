@@ -1,0 +1,57 @@
+name: DSH Private 隔离接续阶段
+on:
+  workflow_call:
+    inputs:
+      runner:
+        type: string
+        required: true
+      phase:
+        type: string
+        required: true
+      previous:
+        type: string
+        default: ''
+      chatsync_ref:
+        type: string
+        required: true
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: Aelithis/dsh-chatsync
+          ref: ${{ inputs.chatsync_ref }}
+          path: .private-plugin
+          persist-credentials: false
+      - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3
+        with:
+          version: 11.28.5
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24.22.1'
+      - name: 安装锁定测试依赖
+        run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        if: inputs.previous != ''
+        with:
+          name: handoff-${{ inputs.previous }}
+          path: .private-handoff
+      - name: 验证真实持久化及目录接续
+        env:
+          DSH_PRIVATE_HANDOFF_PHASE: ${{ inputs.phase }}
+          DSH_PRIVATE_HANDOFF_DIR: ${{ github.workspace }}/.private-handoff
+          DSH_PRIVATE_CHATSYNC_DIR: ${{ github.workspace }}/.private-plugin
+        run: pnpm exec vitest run packages/session/working-directory/tests/private-handoff.spec.ts
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: handoff-${{ inputs.phase }}
+          path: .private-handoff/*
+          if-no-files-found: error
+          retention-days: 30

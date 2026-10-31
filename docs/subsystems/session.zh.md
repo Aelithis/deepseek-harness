@@ -1015,6 +1015,28 @@ Persistence is intentionally not implemented here — the agent lifecycle attach
 
 ```ts cordis-catalog
 /**
+ * Register a device-local project mapping without changing persisted headers.
+ * @param mapping - Known device roots and the local directory.
+ * @returns the registering fiber's disposer.
+ */
+registerProjectMapping(mapping: ProjectDirectoryMapping): () => Promise<void>
+
+/**
+ * Project a logged project path to this host, preserving root-relative suffixes.
+ * @param path - Persisted absolute directory or file path.
+ * @returns the mapped local path, or the original when no root contains it.
+ */
+resolveProjectPath(path: string): string
+
+/**
+ * Record a local project path using the immutable original project's spelling.
+ * @param path - Local absolute directory.
+ * @param root - Original Session project root; omitted values use the mapping's first root.
+ * @returns a portable recorded path, or the original local path outside mapped projects.
+ */
+resolveRecordedProjectPath(path: string, root?: string): string
+
+/**
  * Register one event interpreter for live creation, restore, and fork.
  * Disposing the contribution makes sessions that used it refuse further derivation.
  * @param projection - pure definition owned by the event's plugin.
@@ -1147,7 +1169,7 @@ list(): Session[]
 fork(source: SessionForkSource, boundary?: SessionSeq, childSessionId?: SessionId): Session
 ```
 
-Types: [CreateSessionOptions](persistence.zh.md) · [PrepareSessionOptions](persistence.zh.md) · [SessionId](core.zh.md)
+Types: [CreateSessionOptions](persistence.zh.md) · [PrepareSessionOptions](persistence.zh.md) · [ProjectDirectoryMapping](working-directory.zh.md) · [SessionId](core.zh.md)
 
 Source: [`packages/core/session/src/index.ts`](../../packages/core/session/src/index.ts)
 

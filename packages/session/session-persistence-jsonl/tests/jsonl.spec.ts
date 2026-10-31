@@ -1408,6 +1408,15 @@ describe('JsonlSessionPersistence: durability and crash semantics', () => {
   })
   afterEach(async () => { await ctx.fiber.dispose() })
 
+  it.each(['C:\\Projects\\shared', '\\\\server\\share\\project', '/Volumes/shared'])('reads current foreign absolute header %s without rewriting it', async (cwd) => {
+    const header = { ...meta('foreign-header', cwd), delegationDepth: 0 }
+    await writeLog(ctx.sessionPersistence, header, [{ type: 'turn/start', seq: SessionSeq(0), time: 1, data: { turn: 1 } }])
+    const restored = await readAll(ctx.sessionPersistence, header.id)
+    expect(restored.meta).toEqual(header)
+    expect(restored.events).toHaveLength(1)
+    expect((await ctx.sessionPersistence.list()).map(snapshot => snapshot.header.cwd)).toContain(cwd)
+  })
+
   it('lazy materialization: create() writes no file until the first append', async () => {
     const m = meta('lazy', '/work')
     const handle = await ctx.sessionPersistence.create(m)

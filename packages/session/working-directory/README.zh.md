@@ -25,6 +25,8 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用此包
 
+`registerProjectMapping({ roots, directory })` 登记随调用插件卸载的本机项目映射，返回的释放函数可移除映射。`roots` 包含已记录的项目根目录，`directory` 指定本机已有目录。`get` 和 `ensure` 将记录路径投影到该目录；`projectRoot` 解析权限使用的原始项目根。项目内的目录变更按原 header 根和相对位置记录；必需请求上下文记录实际本机目录，不改写历史 header 和事件。映射应在工作区初始化前登记，运行中变更后调用 `workspaceRegistry.refreshSessionPaths()`。未映射的异构路径和不可用目录在执行前报错。
+
 与 `fs`、`sessionProjections` 和 `systemPrompt` 一起挂载。`defaultDirectory` 为没有原始目录的 Session 指定绝对回退目录；省略时使用启动目录。参见[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-working-directory)。
 
 ```yaml

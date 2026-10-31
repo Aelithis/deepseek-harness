@@ -25,6 +25,8 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
+Session headers accept POSIX, drive-qualified Windows, and UNC absolute directories independently of the reader platform. `registerProjectMapping` owns reversible local root mappings; `resolveProjectPath` projects recorded paths to the host and `resolveRecordedProjectPath` converts local project paths back to the original header root. These operations preserve Session IDs, headers, and historical events; mappings are not persisted or synchronized.
+
 Mount `dsh-session` wherever a session must exist. It creates and holds event-sourced `Session` instances in memory; durable storage is layered on by a persistence plugin that subscribes to the `session/event` feed.
 
 ### Create and inspect sessions

@@ -5,6 +5,7 @@ import { setImmediate } from 'node:timers/promises'
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
+import SandboxPolicyService from '@deepseek-ai/dsh-sandbox-policy'
 import WorkingDirectory, { type Config as WorkingDirectoryConfig } from '@deepseek-ai/dsh-working-directory'
 import { mountAgentLoopTestDependencies, mountAgentLoopTestHarness } from '@deepseek-ai/dsh-agent-loop-testkit'
 import { SessionId } from '@deepseek-ai/dsh-session'
@@ -37,6 +38,43 @@ async function fixture(config?: (root: string) => WorkingDirectoryConfig) {
 }
 
 describe('Session working directories', () => {
+  it('continues an unchanged foreign header and logs local directory transitions', async () => {
+    await using f = await fixture()
+    await f.ctx.plugin(SandboxPolicyService, { mode: 'workspace-write' })
+    const child = join(f.root, 'child')
+    await mkdir(child)
+    const original = 'C:\\Projects\\shared'
+    const dispose = f.ctx.workingDirectory.registerProjectMapping({ roots: [original, '/Volumes/shared'], directory: f.root })
+    const agent = await f.harness.create(SessionId('foreign-origin'), {}, { cwd: original })
+    agent.session.append('working-directory/change', { cwd: `${original}\\child` })
+    const header = agent.session.header
+    await expect(f.ctx.workingDirectory.ensure(agent)).resolves.toBe(child)
+    expect(agent.session.header).toBe(header)
+    expect(agent.session.id).toBe(SessionId('foreign-origin'))
+    expect(agent.session.header.cwd).toBe(original)
+    expect(agent.session.snapshotEvents().at(-1)).toMatchObject({ type: 'working-directory/change', data: { cwd: `${original}\\child` } })
+    await f.ctx.workingDirectory.set(agent, f.root)
+    expect(agent.session.snapshotEvents().filter(event => event.type === 'working-directory/change').at(-1)).toMatchObject({ type: 'working-directory/change', data: { cwd: original } })
+    expect(f.ctx.sessions.resolveProjectPath('/Volumes/shared/child')).toBe(child)
+    expect(f.ctx.sessions.resolveProjectPath('/Volumes/shared-other/child')).toBe('/Volumes/shared-other/child')
+    expect(f.ctx.sandboxPolicy.resolve({ session: agent.session }).workspaceRoot).toBe(f.root)
+    await expect(f.ctx.workingDirectory.set(agent, `${original}\\child`)).resolves.toBe(child)
+    await dispose()
+    expect(f.ctx.sessions.resolveProjectPath(original)).toBe(original)
+  })
+
+  it('does not map root siblings, parent traversal, relative paths, or another project', async () => {
+    await using f = await fixture()
+    f.ctx.workingDirectory.registerProjectMapping({ roots: ['C:\\Projects\\shared'], directory: f.root })
+    expect(f.ctx.sessions.resolveProjectPath('child')).toBe('child')
+    expect(f.ctx.sessions.resolveProjectPath('C:\\Projects\\shared-other')).toBe('C:\\Projects\\shared-other')
+    expect(f.ctx.sessions.resolveProjectPath('C:\\Projects\\shared\\..\\other')).toBe('C:\\Projects\\shared\\..\\other')
+    expect(f.ctx.sessions.resolveProjectPath('D:\\Projects\\shared')).toBe('D:\\Projects\\shared')
+    const unmapped = process.platform === 'win32' ? '/Volumes/unmapped' : 'D:\\Projects\\shared'
+    const agent = await f.harness.create(SessionId('unmapped-foreign'), {}, { cwd: unmapped })
+    await expect(f.ctx.workingDirectory.ensure(agent)).rejects.toThrow('requires a local mapping')
+  })
+
   it('keeps origin metadata and other Sessions independent while logging the changed directory', async () => {
     await using f = await fixture()
     const child = join(f.root, 'child')

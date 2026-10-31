@@ -1,0 +1,33 @@
+name: DSH Private Mac Windows 往返接续
+on:
+  workflow_dispatch:
+    inputs:
+      chatsync_ref:
+        description: 已审查的 ChatSync 完整提交
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  mac-write:
+    uses: ./.github/workflows/private-handoff-stage.yml
+    with:
+      runner: macos-15
+      phase: mac-write
+      chatsync_ref: ${{ inputs.chatsync_ref }}
+  win-continue:
+    needs: mac-write
+    uses: ./.github/workflows/private-handoff-stage.yml
+    with:
+      runner: windows-2025
+      phase: win-continue
+      chatsync_ref: ${{ inputs.chatsync_ref }}
+      previous: mac-write
+  mac-return:
+    needs: win-continue
+    uses: ./.github/workflows/private-handoff-stage.yml
+    with:
+      runner: macos-15
+      phase: mac-return
+      chatsync_ref: ${{ inputs.chatsync_ref }}
+      previous: win-continue

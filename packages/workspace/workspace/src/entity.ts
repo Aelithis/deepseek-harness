@@ -39,6 +39,13 @@ export interface WorkspaceEntityHost {
   table(): KvTable<WorkspaceId, WorkspaceRecord>
 
   /**
+   * Project a recorded root to its device-local project directory.
+   * @param path - Recorded absolute root.
+   * @returns the local project root.
+   */
+  resolveProjectPath(path: string): string
+
+  /**
    * Validate an already-accounted session, preserving ownership when its fully
    * qualified cwd cannot resolve because a path component is missing.
    * @param id - Session already present in this workspace's candidate account.
@@ -84,7 +91,7 @@ export class WorkspaceEntity implements Workspace {
   }
 
   get path(): string {
-    return this.record.path
+    return this.host.resolveProjectPath(this.record.path)
   }
 
   get title(): string {
@@ -122,7 +129,7 @@ export class WorkspaceEntity implements Workspace {
       }
       let cwd: string
       try {
-        cwd = await realpathNormalize(header.cwd)
+        cwd = await realpathNormalize(this.host.resolveProjectPath(header.cwd))
       } catch (error) {
         throw new Error(
           `cannot attach session '${sessionId}' to workspace '${this.record.path}': `
@@ -136,7 +143,7 @@ export class WorkspaceEntity implements Workspace {
           + `its cwd '${header.cwd}' is not a directory`,
         )
       }
-      if (cwd !== this.record.path) {
+      if (cwd !== this.path) {
         throw new Error(
           `cannot attach session '${sessionId}' to workspace '${this.record.path}': `
           + `its cwd resolves to '${cwd}'`,
@@ -180,7 +187,7 @@ export class WorkspaceEntity implements Workspace {
 
   async status(): Promise<'ok' | 'missing-dir'> {
     try {
-      return (await stat(this.record.path)).isDirectory() ? 'ok' : 'missing-dir'
+      return (await stat(this.path)).isDirectory() ? 'ok' : 'missing-dir'
     } catch {
       // Any stat failure (ENOENT, dangling parent, permission loss) means the
       // directory is not usable right now; the record itself never mutates.

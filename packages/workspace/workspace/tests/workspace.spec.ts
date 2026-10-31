@@ -65,6 +65,7 @@ async function harness(options: HarnessOptions = {}) {
     ctx.provide('sessions', {
       get: (id: SessionId) => live.get(id),
       list: () => [...live.values()],
+      resolveProjectPath: (path: string) => path,
     } as never)
   }
 
@@ -765,6 +766,43 @@ describe('Workspace session ordering', () => {
 })
 
 describe('header-validated membership projection', () => {
+  it('shows imported foreign workspace records under their local mapping without rewriting storage', async () => {
+    const dir = await makeDir('imported-project')
+    const original = 'C:\\Projects\\imported'
+    const pool = storedPool([['remote-workspace', record(original, ['remote-session'])]], {
+      initialized: true, workspaceIds: ['remote-workspace'], archivedSessionIds: [], pinnedSessionIds: [],
+    })
+    const result = await harness({ pool, sessions: [header('remote-session', original)], sessionStore: true })
+    const workspace = result.registry.get(WorkspaceId('remote-workspace'))!
+    result.ctx.sessions.registerProjectMapping({ roots: [original], directory: dir })
+    await result.registry.refreshSessionPaths()
+    expect(result.registry.list()).toContain(workspace)
+    expect(workspace.path).toBe(dir)
+    expect(workspace.sessionIds).toEqual(['remote-session'])
+    expect(await workspace.status()).toBe('ok')
+    expect(await result.registry.resolveByPath(dir)).toBe(workspace)
+    expect(await result.registry.create(dir)).toBe(workspace)
+    await workspace.setTitle('本机项目')
+    expect(storedRecord(pool, workspace.id).path).toBe(original)
+    expect(storedRecord(pool, workspace.id).sessionIds).toEqual(['remote-session'])
+  })
+
+  it('refreshes mapped membership without replacing workspace records or candidate accounts', async () => {
+    const dir = await makeDir('mapped-local')
+    const result = await harness({ sessionStore: true })
+    const original = 'C:\\Projects\\remote'
+    result.ctx.sessions.registerProjectMapping({ roots: [original], directory: dir })
+    result.ctx.sessions.create(SessionId('mapped'), { meta: { cwd: original } })
+    const workspace = await result.registry.create(dir)
+    await workspace.attachSession(SessionId('mapped'))
+    const identity = workspace.id
+    const changes = result.changes.length
+    await result.registry.refreshSessionPaths()
+    expect(result.registry.get(identity)).toBe(workspace)
+    expect(workspace.sessionIds).toEqual(['mapped'])
+    expect(result.changes).toHaveLength(changes)
+  })
+
   it('preserves owned sessions and manual order after directory removal and restart', async () => {
     const dir = await makeDir('removed-owned')
     const sessions = [header('first', dir), header('second', dir)]

@@ -25,6 +25,8 @@ Change one Session’s working directory while existing processes retain theirs.
 <a id="use-this-package"></a>
 ## Use this package
 
+`registerProjectMapping({ roots, directory })` registers a fiber-owned, device-local project mapping; its disposer removes it. `roots` contains recorded project roots and `directory` selects the local existing directory. `get` and `ensure` project recorded paths into that directory; `projectRoot` resolves the immutable project root for permissions. Changes within the project are recorded using the original header root and a relative suffix. Required request context records the actual local directory without rewriting historical headers or events. Register mappings before workspace bootstrap, or call `workspaceRegistry.refreshSessionPaths()` after changing them. Unmapped foreign paths and unavailable directories fail before execution.
+
 Mount alongside `fs`, `sessionProjections`, and `systemPrompt`. `defaultDirectory` selects an absolute fallback for Sessions without an original directory; omission uses the launch directory. See the [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-working-directory).
 
 ```yaml

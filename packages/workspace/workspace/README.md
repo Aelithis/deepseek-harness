@@ -25,6 +25,8 @@ Use this package to keep an ordered, persistent list of project directories and 
 <a id="use-this-package"></a>
 ## Use this package
 
+Workspace `path`, directory status, and Session membership resolve stored workspace paths and immutable header roots through the local project mappings registered with `sessions`. After a mapping or imported header changes, call `refreshSessionPaths()` to refresh stored and live Session indexes without replacing workspace records or candidate accounts.
+
 Use this package to give the product a project list: named directories the user works in, the sessions that ran in each, a stable order, and a way to hide sessions without losing them or bring them back. The API contracts behind each action live in the implementation section.
 
 ### When to use it

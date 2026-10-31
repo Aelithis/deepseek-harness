@@ -2372,6 +2372,24 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'In-memory session store (`ctx.sessions`).\n\nPersistence is intentionally not implemented here — the agent lifecycle attaches a session-log writer to each published session\'s write handle; a session published outside that lifecycle persists nothing.',
     methods: [
       {
+        signature: 'registerProjectMapping(mapping: ProjectDirectoryMapping): () => Promise<void>',
+        description: 'Register a device-local project mapping without changing persisted headers.',
+        parameters: [{ name: 'mapping', description: 'Known device roots and the local directory.' }],
+        returns: 'the registering fiber\'s disposer.',
+      },
+      {
+        signature: 'resolveProjectPath(path: string): string',
+        description: 'Project a logged project path to this host, preserving root-relative suffixes.',
+        parameters: [{ name: 'path', description: 'Persisted absolute directory or file path.' }],
+        returns: 'the mapped local path, or the original when no root contains it.',
+      },
+      {
+        signature: 'resolveRecordedProjectPath(path: string, root?: string): string',
+        description: 'Record a local project path using the immutable original project\'s spelling.',
+        parameters: [{ name: 'path', description: 'Local absolute directory.' }, { name: 'root', description: 'Original Session project root; omitted values use the mapping\'s first root.' }],
+        returns: 'a portable recorded path, or the original local path outside mapped projects.',
+      },
+      {
         signature: 'registerMessageProjection(projection: SessionMessageProjection): () => Promise<void>',
         description: 'Register one event interpreter for live creation, restore, and fork. Disposing the contribution makes sessions that used it refuse further derivation.',
         parameters: [{ name: 'projection', description: 'pure definition owned by the event\'s plugin.' }],
@@ -3592,6 +3610,18 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [],
       },
       {
+        signature: 'registerProjectMapping(mapping: ProjectDirectoryMapping): () => Promise<void>',
+        description: 'Register the local directory for a synchronized project\'s known device roots.',
+        parameters: [{ name: 'mapping', description: 'Original project roots and the selected local directory.' }],
+        returns: 'the registering fiber\'s disposer; mappings are never persisted to the Session.',
+      },
+      {
+        signature: 'projectRoot(session: Session): string',
+        description: 'Read the local project root used for permissions and workspace membership.',
+        parameters: [{ name: 'session', description: 'Session whose immutable project root is requested.' }],
+        returns: 'the mapped project root or deployment fallback.',
+      },
+      {
         signature: 'get(session: Session): string',
         description: 'Read the committed directory without filesystem I/O.',
         parameters: [{ name: 'session', description: 'Session whose directory is requested.' }],
@@ -3749,6 +3779,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     summary: 'Durable workspace registry.',
     description: 'Durable workspace registry. Startup waits for `sessionPersistence`, builds one canonical-cwd header index, and completes the one-time history bootstrap before the service becomes active. The persistence dependency is mandatory so an unavailable peer can never be mistaken for an empty history and commit the initialized marker.',
     methods: [
+      {
+        signature: 'refreshSessionPaths(): Promise<void>',
+        description: 'Refresh local project membership after mappings or imported Session headers change. Existing workspace records and their candidate accounts remain unchanged.',
+        parameters: [],
+        returns: 'resolution after stored and live headers have been reindexed.',
+      },
       {
         signature: 'async create(path: string, title?: string): Promise<Workspace>',
         description: 'Create or reuse a workspace for an existing directory. The fully qualified path is canonicalized through `fs.realpath`; a relative, nonexistent, or non-directory path rejects. Repeated calls for the same canonical path return the existing entity without changing its title. A newly created workspace is prepended to the durable registry order. Different canonical paths may share a display title.',
@@ -6245,6 +6281,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ProfileReconciliation',
     declaration: 'export interface ProfileReconciliation {\n    warnings: string[];\n    pending: PendingModule[];\n    restartReason?: \'module-comparison\' | \'package-moved\';\n}',
+  },
+  {
+    name: 'ProjectDirectoryMapping',
+    declaration: 'export interface ProjectDirectoryMapping {\n    roots: string[];\n    directory: string;\n}',
   },
   {
     name: 'ProjectionChangeListener',

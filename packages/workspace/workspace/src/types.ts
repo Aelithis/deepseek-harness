@@ -71,9 +71,9 @@ export interface Workspace {
   readonly id: WorkspaceId
 
   /**
-   * Canonical directory path: the `fs.realpath` of the path given at create
-   * time (trailing slashes, `..`, and symlinks all resolved). Never rewritten
-   * afterwards, even when the directory disappears (see {@link status}).
+   * Local project directory after applying device-local mappings to the stored
+   * canonical path. The stored path remains unchanged, including when the
+   * directory disappears (see {@link status}).
    */
   readonly path: string
 

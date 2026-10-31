@@ -215,7 +215,7 @@ export class WorkspaceFiles extends TypertRemoteService {
           if (header === undefined) return undefined
           return {
             sessionId,
-            workspaceRoot: header.cwd ?? scope.sandboxPolicy.workspaceRoot,
+            workspaceRoot: scope.sessions.resolveProjectPath(header.cwd ?? scope.sandboxPolicy.workspaceRoot),
           }
         },
       })

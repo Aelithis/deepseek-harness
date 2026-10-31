@@ -4277,7 +4277,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-working-directory`
 
-- `inject`: `fs` · `sessionProjections` · `systemPrompt`
+- `inject`: `sessions` · `fs` · `sessionProjections` · `systemPrompt`
 - `source`: [`packages/session/working-directory/src/index.ts:56`](../packages/session/working-directory/src/index.ts)
 
 ```ts config-catalog

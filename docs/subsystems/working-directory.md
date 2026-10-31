@@ -2,13 +2,13 @@
 
 English | [中文](working-directory.zh.md)
 
-A Session's active directory is owned by [`dsh-working-directory`](../../packages/session/working-directory/README.md). The immutable header identifies the original project; `working-directory/change` records the effective directory used by later directory-based operations. The generated [persistence catalog](../persistence-catalog.md) owns the event declaration.
+A Session's active directory is owned by [`dsh-working-directory`](../../packages/session/working-directory/README.md). The immutable header identifies the original project; `working-directory/change` records the directory used by later directory-based operations, using the original project root for mapped project paths. The generated [persistence catalog](../persistence-catalog.md) owns the event declaration.
 
 ## Directory selection
 
-`ctx.workingDirectory.get(session)` reads the logged value. `ensure(agent)` validates it and restores the original project when the directory disappeared. `set(agent, path)` validates and records a requested change. Sessions without a header directory use the configured runtime fallback; an unavailable fallback produces an error.
+`ctx.workingDirectory.get(session)` projects the logged value through device-local project mappings. `ensure(agent)` validates it and restores the original project when the directory disappeared. `set(agent, path)` validates and records a requested change. Sessions without a header directory use the configured runtime fallback; an unavailable fallback produces an error.
 
-Changes are local to one Session. Relative filesystem operations, newly started processes, instruction discovery, skills, and file completion use the active directory. Existing terminals and persistent shells retain their own directories. Sandbox writable roots and project membership remain anchored to the original project.
+Changes are local to one Session. Relative filesystem operations, newly started processes, instruction discovery, skills, and file completion use the active directory. Existing terminals and persistent shells retain their own directories. Sandbox writable roots and project membership remain anchored to the locally mapped original project.
 
 ## Model context
 
@@ -29,6 +29,20 @@ Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnp
 One owner for each Session's effective directory and its model-visible changes.
 
 ```ts cordis-catalog
+/**
+ * Register the local directory for a synchronized project's known device roots.
+ * @param mapping - Original project roots and the selected local directory.
+ * @returns the registering fiber's disposer; mappings are never persisted to the Session.
+ */
+registerProjectMapping(mapping: ProjectDirectoryMapping): () => Promise<void>
+
+/**
+ * Read the local project root used for permissions and workspace membership.
+ * @param session - Session whose immutable project root is requested.
+ * @returns the mapped project root or deployment fallback.
+ */
+projectRoot(session: Session): string
+
 /**
  * Read the committed directory without filesystem I/O.
  * @param session - Session whose directory is requested.

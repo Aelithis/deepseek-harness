@@ -537,6 +537,7 @@ export const LINK_MAP: Readonly<Record<string, string>> = {
   CreateSessionOptions: 'persistence.md',
   PrepareSessionOptions: 'persistence.md',
   SessionHeader: 'persistence.md',
+  ProjectDirectoryMapping: 'working-directory.md',
   SessionLocation: 'persistence.md',
   SessionPreparation: 'persistence.md',
   SessionAccess: 'persistence.md',

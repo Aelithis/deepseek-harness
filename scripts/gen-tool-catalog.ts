@@ -511,7 +511,6 @@ const TOOL_PACKAGES: ToolPackage[] = [
     requires: ['ctx.tools', 'ctx.systemPrompt', 'ctx.sessionQuery', 'a calling Agent for workspace authority'],
     writes: ['tool/call', 'tool/result'],
     async mount(ctx) {
-      await ctx.plugin(SessionStore)
       await ctx.plugin(SqliteSessionQueryEngine, { path: ':memory:' })
       await ctx.plugin(ToolSessionQuery)
     },
@@ -552,7 +551,6 @@ const TOOL_PACKAGES: ToolPackage[] = [
       await ctx.plugin(SubagentRuntime)
       await ctx.plugin(LocalJobRegistry)
       await ctx.plugin(AgentRegistry)
-      await ctx.plugin(SessionStore)
       await ctx.plugin(ToolSubagentControl)
       await ctx.plugin(ToolSubagentListAgents)
     },
@@ -580,7 +578,6 @@ const TOOL_PACKAGES: ToolPackage[] = [
     writes: ['tool/call', 'team/member', 'team/task', 'agent/inbox/spliced', 'user/message on inbox claim', 'tool/result'],
     async mount(ctx) {
       await ctx.plugin(AgentRegistry)
-      await ctx.plugin(SessionStore)
       const session = ctx.sessions.create(SessionId('tool-catalog-team-lead'))
       let agent!: Agent
       const membership = {
@@ -765,6 +762,7 @@ export async function collectToolCatalog(packages: ToolPackage[] = TOOL_PACKAGES
     // plugins mounted still tears the context down (no leaked executor/provider
     // fiber) — the repo's "dispose must reach quiescence" rule.
     try {
+      await ctx.plugin(SessionStore)
       await ctx.plugin(SessionProjectionRegistry)
       await ctx.plugin(SystemPrompt)
       await ctx.plugin(LocalFileSystem)

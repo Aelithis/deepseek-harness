@@ -25,6 +25,8 @@ Use this package to apply one file-effect policy to every confined bash, filesys
 <a id="use-this-package"></a>
 ## Use this package
 
+Session workspace roots use the local project mapping from `sessions` when that service is mounted. Changing the active subdirectory does not expand the mapped project permission root.
+
 Mount this package in any composition where sandbox-enforcing capabilities run: it owns the deployment default and the per-session overrides those capabilities consume, and it contributes the current policy to the model's runtime-context snapshot.
 
 ### When to choose it

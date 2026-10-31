@@ -8,9 +8,10 @@
  * @module dsh-session-persistence-jsonl/format
  */
 
-import { isAbsolute, join } from 'node:path'
+import { join } from 'node:path'
 import {
   SESSION_FORMAT_VERSION,
+  isSessionAbsolutePath,
   KNOWN_SESSION_EVENT_TYPES,
   SessionLogOffset,
 } from '@deepseek-ai/dsh-session'
@@ -174,7 +175,7 @@ function isHeaderLine(value: unknown): value is HeaderLine {
     && !Object.is((value as { delegationDepth: number }).delegationDepth, -0)
     && ((value as { cwd?: unknown }).cwd === undefined
       || (typeof (value as { cwd?: unknown }).cwd === 'string'
-        && isAbsolute((value as { cwd: string }).cwd)))
+        && isSessionAbsolutePath((value as { cwd: string }).cwd)))
     && ((value as { parentSession?: unknown }).parentSession === undefined
       || typeof (value as { parentSession?: unknown }).parentSession === 'string')
     && typeof (value as { isSeeded?: unknown }).isSeeded === 'boolean'

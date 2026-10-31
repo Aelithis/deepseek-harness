@@ -35,9 +35,9 @@ interface Workspace {
   readonly id: WorkspaceId
 
   /**
-   * Canonical directory path: the `fs.realpath` of the path given at create
-   * time (trailing slashes, `..`, and symlinks all resolved). Never rewritten
-   * afterwards, even when the directory disappears (see {@link status}).
+   * Local project directory after applying device-local mappings to the stored
+   * canonical path. The stored path remains unchanged, including when the
+   * directory disappears (see {@link status}).
    */
   readonly path: string
 
@@ -468,6 +468,13 @@ Source: [`packages/api/workspace-files/src/index.ts`](../../packages/api/workspa
 Durable workspace registry. Startup waits for `sessionPersistence`, builds one canonical-cwd header index, and completes the one-time history bootstrap before the service becomes active. The persistence dependency is mandatory so an unavailable peer can never be mistaken for an empty history and commit the initialized marker.
 
 ```ts cordis-catalog
+/**
+ * Refresh local project membership after mappings or imported Session headers change.
+ * Existing workspace records and their candidate accounts remain unchanged.
+ * @returns resolution after stored and live headers have been reindexed.
+ */
+refreshSessionPaths(): Promise<void>
+
 /**
  * Create or reuse a workspace for an existing directory. The fully qualified
  * path is canonicalized through `fs.realpath`; a relative, nonexistent, or

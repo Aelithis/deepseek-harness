@@ -182,8 +182,9 @@ export class WorkspaceRegistry extends Service {
 
   private readonly host: WorkspaceEntityHost = {
     table: () => this.requireTable(),
-    candidateMatches: (id, path) => this.sessionPaths.get(id) === path || this.missingSessionPaths.has(id),
+    candidateMatches: (id, path) => this.sessionPaths.get(id) === this.host.resolveProjectPath(path) || this.missingSessionPaths.has(id),
     readSessionHeader: id => this.readSessionHeader(id),
+    resolveProjectPath: path => this.ctx.get('sessions')?.resolveProjectPath(path) ?? path,
     rememberSessionPath: (id, path) => {
       this.sessionPaths.set(id, path)
       this.missingSessionPaths.delete(id)
@@ -220,6 +221,18 @@ export class WorkspaceRegistry extends Service {
   }
 
   /**
+   * Refresh local project membership after mappings or imported Session headers change.
+   * Existing workspace records and their candidate accounts remain unchanged.
+   * @returns resolution after stored and live headers have been reindexed.
+   */
+  refreshSessionPaths(): Promise<void> {
+    return this.enqueueOperation(async () => {
+      await this.replaceHeaderIndex(await this.listStoredHeaders())
+      await this.indexLiveSessions()
+    })
+  }
+
+  /**
    * Create or reuse a workspace for an existing directory. The fully qualified
    * path is canonicalized through `fs.realpath`; a relative, nonexistent, or
    * non-directory path rejects. Repeated calls for the same canonical path
@@ -236,7 +249,7 @@ export class WorkspaceRegistry extends Service {
   // drop the parameter with its @param clause and the `create(path, title?)`
   // lines in this package's README pair.
   async create(path: string, title?: string): Promise<Workspace> {
-    const canonical = await realpathNormalize(path)
+    const canonical = await realpathNormalize(this.host.resolveProjectPath(path))
     if (!(await stat(canonical)).isDirectory()) {
       throw new Error(`cannot create a workspace at '${canonical}': path is not a directory`)
     }
@@ -267,7 +280,7 @@ export class WorkspaceRegistry extends Service {
       const path = await resolveDirectory()
       if (!fullyQualifiedWorkspacePath(path)) throw new TypeError(`Workspace path is not fully qualified: '${path}'`)
       await mkdir(path, { recursive: true })
-      const canonical = await realpathNormalize(path)
+      const canonical = await realpathNormalize(this.host.resolveProjectPath(path))
       // A Session can start outside the registry queue while directory preparation awaits I/O.
       if ((await this.listStoredHeaders()).length > 0 || sessions.list().length > 0) return undefined
       return this.createCanonical(canonical, defaultWorkspaceTitle(path), true)
@@ -500,7 +513,7 @@ export class WorkspaceRegistry extends Service {
    * @returns the workspace owning the canonical path, when one exists.
    */
   async resolveByPath(path: string): Promise<Workspace | undefined> {
-    const canonical = await realpathNormalize(path)
+    const canonical = await realpathNormalize(this.host.resolveProjectPath(path))
     for (const entity of this.entities.values()) {
       if (entity.path === canonical) return entity
     }
@@ -668,7 +681,7 @@ export class WorkspaceRegistry extends Service {
     const byPath = new Map<string, WorkspaceId>()
     const accounted = new Map<SessionId, WorkspaceId>()
     for (const [id, record] of table.entries()) {
-      byPath.set(record.path, id)
+      byPath.set(this.host.resolveProjectPath(record.path), id)
       for (const sessionId of record.sessionIds) accounted.set(sessionId, id)
     }
 
@@ -716,8 +729,8 @@ export class WorkspaceRegistry extends Service {
     const priorRank = new Map(state.workspaceIds.map((id, index) => [id, index]))
     const workspaceIds = [...table.entries()]
       .sort(([leftId, left], [rightId, right]) => {
-        const leftTime = groupRank.get(left.path) ?? Date.parse(left.createdAt)
-        const rightTime = groupRank.get(right.path) ?? Date.parse(right.createdAt)
+        const leftTime = groupRank.get(this.host.resolveProjectPath(left.path)) ?? Date.parse(left.createdAt)
+        const rightTime = groupRank.get(this.host.resolveProjectPath(right.path)) ?? Date.parse(right.createdAt)
         return rightTime - leftTime
           || (priorRank.get(leftId) ?? Number.MAX_SAFE_INTEGER)
             - (priorRank.get(rightId) ?? Number.MAX_SAFE_INTEGER)
@@ -813,7 +826,7 @@ export class WorkspaceRegistry extends Service {
       return
     }
     try {
-      const path = await realpathNormalize(header.cwd)
+      const path = await realpathNormalize(this.host.resolveProjectPath(header.cwd))
       if (!(await stat(path)).isDirectory()) {
         this.invalidSessionPaths.set(header.id, `cwd '${header.cwd}' is not a directory`)
         return

@@ -1183,6 +1183,12 @@ describe('Session', () => {
     })).toThrow(/does not match session id/)
   })
 
+  it.each(['C:\\Projects\\shared', '\\\\server\\share\\project', '/Volumes/shared'])('preserves a foreign absolute header %s', (cwd) => {
+    const id = SessionId('foreign-header')
+    const header: SessionHeader = { version: SESSION_FORMAT_VERSION, id, createdAt: 123, cwd, isSeeded: false }
+    expect(Session.create(id, [], header).header).toEqual(header)
+  })
+
   it('rejects invalid scalar fields in an explicitly supplied header', () => {
     const base = {
       version: SESSION_FORMAT_VERSION,
@@ -1197,6 +1203,8 @@ describe('Session', () => {
       { header: { ...base, createdAt: '123' }, error: /createdAt must be a non-negative safe integer/ },
       { header: { ...base, cwd: 1 }, error: /header cwd must be a string/ },
       { header: { ...base, cwd: 'relative' }, error: /header cwd must be an absolute path/ },
+      { header: { ...base, cwd: 'C:relative' }, error: /header cwd must be an absolute path/ },
+      { header: { ...base, cwd: '\\relative' }, error: /header cwd must be an absolute path/ },
       { header: { ...base, parentSession: 1 }, error: /header parentSession must be a string/ },
       { header: { ...base, isSeeded: 'yes' }, error: /isSeeded must be a boolean/ },
       { header: { ...base, seedLength: 1 }, error: /invalid field "seedLength"/ },

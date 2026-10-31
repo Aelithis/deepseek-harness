@@ -2,13 +2,13 @@
 
 [English](working-directory.md) | 中文
 
-Session 的当前目录由 [`dsh-working-directory`](../../packages/session/working-directory/README.zh.md) 拥有。不可变 header 标识原始项目；`working-directory/change` 记录后续目录相关操作使用的有效目录。生成的[持久化目录](../persistence-catalog.zh.md) 拥有事件声明。
+Session 的当前目录由 [`dsh-working-directory`](../../packages/session/working-directory/README.zh.md) 拥有。不可变 header 标识原始项目；`working-directory/change` 记录后续目录相关操作使用的目录；映射项目内的路径使用原始项目根记录。生成的[持久化目录](../persistence-catalog.zh.md) 拥有事件声明。
 
 ## 目录选择
 
-`ctx.workingDirectory.get(session)` 读取日志中的值。`ensure(agent)` 验证它，并在目录消失时恢复原始项目。`set(agent, path)` 验证并记录请求的变更。header 没有目录的 Session 使用配置的运行时回退目录；回退目录不可用时返回错误。
+`ctx.workingDirectory.get(session)` 通过本机项目映射解析日志中的值。`ensure(agent)` 验证它，并在目录消失时恢复原始项目。`set(agent, path)` 验证并记录请求的变更。header 没有目录的 Session 使用配置的运行时回退目录；回退目录不可用时返回错误。
 
-变更仅影响一个 Session。相对路径文件系统操作、新启动的进程、指令发现、技能和文件补全使用当前目录。已有终端和持久 shell 保留自己的目录。沙箱可写根目录与项目归属继续绑定原始项目。
+变更仅影响一个 Session。相对路径文件系统操作、新启动的进程、指令发现、技能和文件补全使用当前目录。已有终端和持久 shell 保留自己的目录。沙箱可写根目录与项目归属继续绑定本机映射后的原始项目。
 
 ## 模型上下文
 
@@ -29,6 +29,20 @@ Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnp
 One owner for each Session's effective directory and its model-visible changes.
 
 ```ts cordis-catalog
+/**
+ * Register the local directory for a synchronized project's known device roots.
+ * @param mapping - Original project roots and the selected local directory.
+ * @returns the registering fiber's disposer; mappings are never persisted to the Session.
+ */
+registerProjectMapping(mapping: ProjectDirectoryMapping): () => Promise<void>
+
+/**
+ * Read the local project root used for permissions and workspace membership.
+ * @param session - Session whose immutable project root is requested.
+ * @returns the mapped project root or deployment fallback.
+ */
+projectRoot(session: Session): string
+
 /**
  * Read the committed directory without filesystem I/O.
  * @param session - Session whose directory is requested.

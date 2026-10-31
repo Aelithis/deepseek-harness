@@ -40,6 +40,8 @@ kind: "package-library"
 <a id="use-this-package"></a>
 ## 使用本包
 
+原生 V4 header 按来源平台接受 POSIX、Windows 盘符和 UNC 绝对目录，不受读取端平台影响。相对路径及盘符相对路径仍被拒绝；格式保持 V4，历史转换规则不变。
+
 通过 [catalog](../session-format-catalog/README.zh.md) 完成恢复。直接导入用于 catalog 组装和测试；本库没有 Cordis 挂载配置。[公开导出](src/index.ts)提供相邻迁移、已发布的 V3 源 codec、V4 codec 和目标校验器。源 codec 仍由 [V2 到 V3](../session-format-v2-to-v3/README.zh.md) 所有。
 
 仅 header 迁移会校验并推进元数据，不读取正文或收集子 Session：
