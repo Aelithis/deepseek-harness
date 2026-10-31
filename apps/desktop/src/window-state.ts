@@ -1,7 +1,7 @@
 /** Main-window dimensions, kept separately from profiles and application data. */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import type { App, BrowserWindow } from 'electron'
+import type { EventEmitter } from 'node:events'
 
 export const DEFAULT_WINDOW_SIZE = { width: 1280, height: 820 }
 export const MIN_WINDOW_SIZE = { minWidth: 520, minHeight: 600 }
@@ -25,8 +25,8 @@ export function readWindowSize(path: string): { width: number; height: number } 
 }
 
 /** Save normal dimensions synchronously so close and quit cannot overtake the write. */
-export function persistWindowSize(window: Pick<BrowserWindow, 'on' | 'getNormalBounds'>,
-  application: Pick<App, 'on' | 'removeListener'>, path: string): void {
+export function persistWindowSize(window: Pick<EventEmitter, 'on'> & { getNormalBounds(): { width: number; height: number } },
+  application: Pick<EventEmitter, 'on' | 'removeListener'>, path: string): void {
   const save = (): void => {
     const { width, height } = window.getNormalBounds()
     try {
