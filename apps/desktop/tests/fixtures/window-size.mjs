@@ -12,7 +12,7 @@ assert.ok(root)
 assert.ok(phase === 'write' || phase === 'read')
 app.setPath('userData', root)
 const path = join(root, 'window-state.json')
-const expected = { width: 1040, height: 720 }
+const expected = { width: 800, height: 640 }
 
 async function main() {
   await app.whenReady()
