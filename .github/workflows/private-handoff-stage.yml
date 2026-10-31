@@ -38,6 +38,8 @@ jobs:
           node-version: '24.22.1'
       - name: 安装锁定测试依赖
         run: pnpm install --frozen-lockfile
+      - name: 构建本机文件锁模块
+        run: pnpm run build:native-system
       - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         if: inputs.previous != ''
         with:

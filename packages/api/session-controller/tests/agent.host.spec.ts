@@ -41,6 +41,7 @@ async function harness(): Promise<{ ctx: Context; agents: ApiSessionAgentControl
   installModelSelectionProjection(ctx)
   ctx.provide('agentDefaultModel', {
     currentSelection: () => ({ provider: 'fixture', model: 'fixture-model' }),
+    configuredSelection: () => ({ provider: 'fixture', model: 'fixture-model' }),
     saveSelection: () => Promise.resolve(),
   } as never)
   return { ctx, agents: new ApiSessionAgentController(ctx) }
@@ -348,6 +349,24 @@ describe('ApiSession creation', () => {
     await expect(child.agents.resolveAgent(childMeta.id)).resolves.toMatchObject({
       error: { code: 'session/agent-busy' },
     })
+  })
+
+  it('records new project Sessions under the shared root while keeping filesystem creation local', async () => {
+    const { ctx, agents } = await harness()
+    const cwd = mkdtempSync(join(tmpdir(), 'dsh-session-controller-mapped-'))
+    tempDirs.push(cwd)
+    const original = 'C:\\Projects\\shared'
+    ctx.sessions.registerProjectMapping({ roots: [original], directory: cwd })
+    const created = agent(ctx, header('new-mapped', original))
+    const create = vi.spyOn(ctx.agents, 'create').mockResolvedValue({ agent: created } as never)
+    vi.spyOn(agents, 'composeAgent').mockResolvedValue({ setup: () => {} })
+    const result = await agents.createSession({ cwd, reusable: () => true })
+    expect(result.agent).toBe(created)
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ meta: { cwd: original } }))
+    vi.spyOn(ctx.agents, 'get').mockReturnValue(created)
+    const named = await agents.createSession({ sessionId: created.id, cwd, reusable: () => false })
+    expect(named.agent).toBe(created)
+    expect(create).toHaveBeenCalledTimes(2)
   })
 
   it('surfaces directory creation failure', async () => {

@@ -16,7 +16,7 @@ import { MockAdapter, textResponse } from '../../../core/agent-loop/tests/mock-a
 import SubagentRuntime from '../src/index.ts'
 import { TestSessionQuery } from './test-session-query.ts'
 
-async function fixture() {
+async function fixture(mapped = false) {
   const root = await mkdtemp(join(tmpdir(), 'dsh-child-directory-'))
   const origin = join(root, 'origin')
   const first = join(origin, 'first')
@@ -38,12 +38,14 @@ async function fixture() {
   await ctx.plugin(Fork, { providerName: 'fork' })
   const adapter = new MockAdapter([textResponse('parent'), textResponse('child'), textResponse('continued')])
   ctx.llm.registerAdapter(['mock'], adapter)
+  const recordedOrigin = mapped ? 'C:\\Projects\\shared' : origin
+  if (mapped) ctx.sessions.registerProjectMapping({ roots: [recordedOrigin], directory: await realpath(origin) })
   const { agent: parent } = await ctx.agents.create({
     sessionId: SessionId('directory-parent'),
-    meta: { cwd: origin },
+    meta: { cwd: recordedOrigin },
     agentOptions: { provider: 'mock', model: 'mock' },
   })
-  return { ctx, parent, origin, first, second, adapter }
+  return { ctx, parent, origin, first, second, adapter, recordedOrigin }
 }
 
 describe('subagent working directories', () => {
@@ -62,6 +64,21 @@ describe('subagent working directories', () => {
     expect(ctx.workingDirectory.get(child.session)).toBe(selected)
     await ctx.workingDirectory.set(parent, first)
     expect(ctx.workingDirectory.get(child.session)).toBe(selected)
+    await run.dispose()
+  })
+
+  it.each(['spawn', 'fork'])('%s preserves the shared project root in child metadata and directory events', async (provider) => {
+    const { ctx, parent, second, recordedOrigin } = await fixture(true)
+    const selected = await ctx.workingDirectory.set(parent, second)
+    const run = await startTestActivation(ctx, provider, {
+      parent, prompt: [{ type: 'text', text: 'child' }], signal: new AbortController().signal,
+    })
+    await run.result
+    const child = run.localAgent
+    expect(child.session.header.cwd).toBe(recordedOrigin)
+    expect(ctx.workingDirectory.get(child.session)).toBe(selected)
+    expect(child.session.snapshotEvents().filter(event => event.type === 'working-directory/change').at(-1)?.data)
+      .toMatchObject({ cwd: `${recordedOrigin}\\second` })
     await run.dispose()
   })
 

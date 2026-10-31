@@ -467,7 +467,8 @@ export class ApiSessionAgentController {
       throw new ApiSessionSubagentOwnership(sessionId)
     }
     if (live !== undefined) {
-      if (live.session.header.cwd !== request.cwd) {
+      if (live.session.header.cwd === undefined
+        || this.ctx.sessions.resolveProjectPath(live.session.header.cwd) !== request.cwd) {
         throw new ApiSessionCwdConflict(live.id, request.cwd, live.session.header.cwd)
       }
       const composition = await this.composeAgent(request.agentPreset)
@@ -486,7 +487,8 @@ export class ApiSessionAgentController {
       if (hasApiSessionSubagentOwner(this.ctx, { header: observed.header }, undefined)) {
         throw new ApiSessionSubagentOwnership(sessionId)
       }
-      if (observed.header.cwd !== request.cwd) {
+      if (observed.header.cwd === undefined
+        || this.ctx.sessions.resolveProjectPath(observed.header.cwd) !== request.cwd) {
         throw new ApiSessionCwdConflict(sessionId, request.cwd, observed.header.cwd)
       }
       reusable = request.reusable(sessionId) && !observed.events.some(event => event.type === 'turn/start')
@@ -574,7 +576,7 @@ export class ApiSessionAgentController {
       sessionId,
       agentOptions: this.agentOptions(),
       meta: {
-        cwd,
+        cwd: this.ctx.sessions.resolveRecordedProjectPath(cwd),
         ...(composition.agentPreset === undefined ? {} : { agentPreset: composition.agentPreset }),
       },
       setup: composition.setup,
