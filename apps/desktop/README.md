@@ -16,6 +16,8 @@ The application name is DSH Private and its application ID is `org.aelith.dsh-pr
 
 Electron runs the private Host as a Node-mode child. The Host serves the workspace through an authenticated loopback listener on an allocated port. The application retains file access, terminal commands, browser tools, dependency downloads, and plugin installation. Crash reports remain local. Closing and quitting retain the existing running-task checks.
 
+The main window saves its normal width and height to `window-state.json` under Electron's application-support directory and restores them on launch. The initial size remains 1280 × 820. Window dimensions are independent of model configuration and sessions.
+
 ## Build and upgrade
 
 The system native addon is built and packed from this checkout. Platform packages for other operating systems or CPU architectures are omitted from the target runtime.

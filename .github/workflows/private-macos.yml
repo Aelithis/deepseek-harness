@@ -31,6 +31,10 @@ jobs:
           pnpm install --frozen-lockfile
       - name: 构建个人版 DMG
         run: pnpm run package:desktop:mac:arm64:unsigned
+      - name: 验证窗口尺寸恢复
+        run: |
+          pnpm exec vitest run apps/desktop/tests/window-state.spec.ts
+          node apps/desktop/scripts/smoke-window-size.mjs
       - name: 检查安装内容及回传检测能力
         run: |
           node --test apps/desktop/tests/private-runtime.node.test.mjs

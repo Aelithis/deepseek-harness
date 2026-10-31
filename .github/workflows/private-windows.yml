@@ -34,6 +34,12 @@ jobs:
           pnpm install --frozen-lockfile
       - name: 构建个人版 EXE
         run: pnpm run package:desktop:win:x64:unsigned
+      - name: 验证窗口尺寸恢复
+        run: |
+          pnpm exec vitest run apps/desktop/tests/window-state.spec.ts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node apps/desktop/scripts/smoke-window-size.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: 检查安装内容及回传检测能力
         run: |
           node --test apps/desktop/tests/private-runtime.node.test.mjs apps/desktop/tests/private-build-manifest.node.test.mjs

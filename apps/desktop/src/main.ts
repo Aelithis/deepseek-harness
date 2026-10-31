@@ -41,6 +41,7 @@ import { DesktopUpdateOverlays } from './update-overlay.ts'
 import { DesktopQuitConfirmation } from './quit-confirmation.ts'
 import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
+import { DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE, persistWindowSize, readWindowSize } from './window-state.ts'
 
 let focusPrimaryWindow = (): void => {}
 let stopForRecovery = async (): Promise<void> => {}
@@ -177,10 +178,8 @@ function chromeFallbackFill(): string {
 
 function createWindow(preload: string, show = false, primary = false): BrowserWindow {
   const window = new BrowserWindow({
-    width: 1280,
-    height: 820,
-    minWidth: 520,
-    minHeight: 600,
+    ...(primary ? readWindowSize(join(app.getPath('userData'), 'window-state.json')) : DEFAULT_WINDOW_SIZE),
+    ...MIN_WINDOW_SIZE,
     show,
     ...(process.platform === 'win32' && primary ? {
       titleBarStyle: 'hidden' as const,
@@ -649,6 +648,7 @@ async function main(): Promise<void> {
   const createMainWindow = (): BrowserWindow => {
     const window = createWindow(appPreload, false, true)
     mainWindow = window
+    persistWindowSize(window, app, join(app.getPath('userData'), 'window-state.json'))
     browserGuests.bind(window, (guest, name) => shortcuts.attachGuest(window, guest, name))
     shortcuts.attach(window)
     // Closing hides: the page and the Host keep running, and the next show resumes the same document.
