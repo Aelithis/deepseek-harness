@@ -434,7 +434,7 @@ export class PermissionPresetService extends TypertRemoteService {
       }
       this.autoAdmit()
     }
-    if (preset === null && sandbox === null && approval === null && !seeded) {
+    if (preset === null && sandbox === null && approval === null && !seeded && session.firstLiveSeq === 0) {
       const name = this.defaultPreset
       const spec = this.resolve(name)
       session.append('permission/preset', { preset: name })

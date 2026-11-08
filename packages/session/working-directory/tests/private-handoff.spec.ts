@@ -82,8 +82,19 @@ it.runIf(phase !== undefined && transfer !== undefined)('continues one persisted
       if (phase === 'mac-return') expect(output).toContain('win-continue')
       await writeFile(join(cwd, '..', 'marker.txt'), output + phase + '\n')
       await writeFile(join(transfer, 'marker.txt'), await readFile(join(cwd, '..', 'marker.txt')))
+      if (phase === 'mac-write') {
+        agent.session.append('turn/start', { turn: 1 })
+        agent.session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+      }
     } finally {
       await handle.dispose()
+    }
+    const sessionFile = logPath(join(home, 'sessions'), origin, id, 'none')
+    if (phase === 'mac-write') {
+      const beforeOpen = await readFile(sessionFile)
+      const reopened = await ctx.agents.resume({ resumeSessionId: id })
+      await reopened.dispose()
+      expect(await readFile(sessionFile)).toEqual(beforeOpen)
     }
     const stored = await ctx.sessionPersistence.open(id, 'read')
     try {
@@ -94,7 +105,7 @@ it.runIf(phase !== undefined && transfer !== undefined)('continues one persisted
     } finally {
       await stored.close()
     }
-    const outgoing = await readFile(logPath(join(home, 'sessions'), origin, id, 'none'), 'utf8')
+    const outgoing = await readFile(sessionFile, 'utf8')
     expect(outgoing.startsWith(incoming)).toBe(true)
     expect(outgoing.length).toBeGreaterThan(incoming.length)
     for (const line of outgoing.trim().split('\n')) {

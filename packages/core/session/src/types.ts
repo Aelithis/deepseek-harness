@@ -418,7 +418,8 @@ export interface SessionEventMap {
    * `buildForkSeed` appends that marker before any synthetic closers; the
    * `Session` constructor supplies it when given only the inherited prefix.
    * The last tagged marker is the current Session's cut; untagged markers
-   * keep ordinary restore and replay lifecycle boundaries.
+   * keep replay and recovery lifecycle boundaries. Reopening a session
+   * after a settled turn leaves the stored log unchanged.
    *
    * Only the `Session` constructor and `buildForkSeed` may create this marker.
    * Session append does not reject other writers, so a plugin appending one

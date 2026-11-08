@@ -705,12 +705,16 @@ export class Session {
     }
     this.inheritedEventCount = inheritedEventCount
     this.firstLifecycleSeq = mode === 'snapshot' && this.header.isSeeded ? inheritedEventCount : this.firstLiveSeq
-    // A fresh seeded child always owns one tagged marker at its inherited cut,
-    // even when the copied prefix already ends in an ancestor marker. Restore
-    // retains that durable marker and appends only the ordinary resume marker.
+    // A clean restore must not claim the next sequence number just by opening
+    // the session. Keep the boundary for replay, forks and interrupted work.
+    const lastLifecycleEvent = mode === 'snapshot' ? undefined : this.log.findLast(({ type }: { type: string }) =>
+      type === 'turn/start' || type === 'turn/end' || type === 'compaction/start' || type === 'compaction/end')
+    const completedRestore = lastLifecycleEvent?.type === 'turn/end'
+      && lastLifecycleEvent.data.reason.kind !== 'interrupted'
     if (seed !== undefined && mode === 'snapshot' && this.header.isSeeded && !markedSeed) {
       this.append('session/end-seed', { inherited: true })
-    } else if (seed !== undefined && !(mode === 'snapshot' && this.header.isSeeded) && this.log.at(-1)?.type !== 'session/end-seed') {
+    } else if (seed !== undefined && !(mode === 'snapshot' && this.header.isSeeded)
+      && !completedRestore && this.log.at(-1)?.type !== 'session/end-seed') {
       this.append('session/end-seed', {})
     }
   }

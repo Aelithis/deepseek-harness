@@ -642,8 +642,7 @@ describe('the session-persistence Agent Note: AgentLoop factory create/resume', 
       agentOptions: { provider: 'mock', model: 'mock' },
       setup: async (agentCtx, agent) => {
         expect(agent.id).toBe(sessionId)
-        // The two persisted events plus the end-seed marker.
-        expect(agent.session.snapshotEvents()).toHaveLength(3)
+        expect(agent.session.snapshotEvents()).toHaveLength(2)
         agentCtx.on('session/created', () => void order.push('setup-listener:session/created'))
         agentCtx.on('agent/created', () => void order.push('setup-listener:agent/created'))
         order.push('setup:start')
@@ -680,25 +679,29 @@ describe('the session-persistence Agent Note: AgentLoop factory create/resume', 
     await ctx.fiber.dispose()
   })
 
-  it('a resumed session stores its repair suffix durably before publication', async () => {
-    // The stored fixture (two events, no end-seed) gains the end-seed marker
-    // through the resume handle: after one resume lifecycle the STORED log
-    // carries it, so the next resume reads it back without re-marking.
-    const sessionId = SessionId('resume-suffix-durable')
+  it('opening and closing a completed session leaves the stored log ready for another device to continue', async () => {
+    const sessionId = SessionId('resume-completed-handoff')
     const root = await persistSession(sessionId)
     const ctx = await mountPersistentHarness(root, new MockAdapter([]))
-    const first = await ctx.agents.resume({ resumeSessionId: sessionId })
-    await first.dispose()
+    const original = await readStoredEvents(ctx, sessionId)
 
-    const stored = await readStoredEvents(ctx, sessionId)
-    expect(stored.map(event => event.type)).toEqual(['turn/start', 'turn/end', 'session/end-seed'])
+    const opened = await ctx.agents.resume({ resumeSessionId: sessionId })
+    await opened.dispose()
+    expect(await readStoredEvents(ctx, sessionId)).toEqual(original)
 
-    const second = await ctx.agents.resume({ resumeSessionId: sessionId })
-    expect(second.agent.session.snapshotEvents().map(event => event.type))
-      .toEqual(['turn/start', 'turn/end', 'session/end-seed'])
-    await second.dispose()
-    const restored = await readStoredEvents(ctx, sessionId)
-    expect(restored.map(event => event.type)).toEqual(['turn/start', 'turn/end', 'session/end-seed'])
+    // A different device can append at the first unused sequence number.
+    const writer = await ctx.sessionPersistence.open(sessionId, 'write')
+    try {
+      await writer.append([
+        { type: 'turn/start', seq: SessionSeq(original.length), time: 3, data: { turn: 2 } },
+        { type: 'turn/end', seq: SessionSeq(original.length + 1), time: 4, data: { turn: 2, reason: { kind: 'completed' } } },
+      ])
+    } finally {
+      await writer.close()
+    }
+    const continued = await readStoredEvents(ctx, sessionId)
+    expect(continued.slice(0, original.length)).toEqual(original)
+    expect(continued.at(-1)).toMatchObject({ type: 'turn/end', data: { turn: 2 } })
     await ctx.fiber.dispose()
   })
 
@@ -1061,10 +1064,8 @@ describe('the session-persistence Agent Note: AgentLoop factory create/resume', 
     const a2 = (await ctx2.agents.resume({ resumeSessionId: SessionId('sess-resume') })).agent
     // The resumed session carries the prior history…
     expect(a2.session.id).toBe('sess-resume')
-    // …followed by one end-seed event marking the constructor seed.
-    expect(a2.session.snapshotEvents().length).toBe(events1.length + 1)
+    expect(a2.session.snapshotEvents()).toEqual(events1)
     expect(a2.session.firstLiveSeq).toBe(events1.length)
-    expect(a2.session.snapshotEvents().at(-1)?.type).toBe('session/end-seed')
     const replay = Session.create(SessionId('replay'), events1)
     expect(a2.session.deriveMessages()).toEqual(replay.deriveMessages())
 
